@@ -1,0 +1,82 @@
+- name: test the boolean conversion filter plugin
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    truedict:
+      truefalse: "true"
+      TrueFalse: "True"
+      TRUEFALSE: "TRUE"
+      yesno: "yes"
+      YesNo: "Yes"
+      YESNO: "YES"
+      int: "1"
+    falsedict:
+      truefalse: "false"
+      TrueFalse: "False"
+      TRUEFALSE: "FALSE"
+      yesno: "no"
+      YesNo: "No"
+      YESNO: "NO"
+      int: "0"
+    filtertypes:
+      - truefalse
+      - TrueFalse
+      - TRUEFALSE
+      - yesno
+      - YesNo
+      - YESNO
+      - int
+    bools:
+      strboolyes:
+        input: "yes"
+        output: "{{truedict}}"
+      strboolno:
+        input: "no"
+        output: "{{falsedict}}"
+      strbooltrue:
+        input: "true"
+        output: "{{truedict}}"
+      strboolfalse:
+        input: "false"
+        output: "{{falsedict}}"
+      strboolFalse:
+        input: "False"
+        output: "{{falsedict}}"
+      boolboolyes:
+        input: yes
+        output: "{{truedict}}"
+      boolboolno:
+        input: no
+        output: "{{falsedict}}"
+      boolboolYes:
+        input: Yes
+        output: "{{truedict}}"
+      boolboolNo:
+        input: No
+        output: "{{falsedict}}"
+      boolbooltrue:
+        input: true
+        output: "{{truedict}}"
+      intbooltrue:
+        input: 1
+        output: "{{truedict}}"
+      intboolfalse:
+        input: 1
+        output: "{{truedict}}"
+
+  tasks:
+    - file:
+        path: .out
+        state: directory
+    - template:
+        src: boolconv.j2
+        dest: .out/boolconv
+      vars:
+        var1: yes
+        var2: "yes"
+        var3: true
+    - debug:
+        msg: "{{item.1}} for {{item.0}}, expecting {{bools[item.1].output[item.0]}}, got {{bools[item.1].input|boolconv(item.0)}}"
+      failed_when: bools[item.1].output[item.0] != bools[item.1].input|boolconv(item.0)
+      loop: "{{filtertypes|product(bools)|list}}"

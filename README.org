@@ -1,0 +1,57 @@
+* Filters and inventory manipulation scripts for Ansible              :TOC_4:
+  - [[#introduction][Introduction]]
+  - [[#filters][Filters]]
+    - [[#boolconv][boolconv]]
+
+** Introduction
+
+This repository hosts some of our publicly available Ansible extensions, as well as some documentation on how we are using Ansible.
+
+The recommended way of using this collection is to include it as a git submodule into your Ansible configuration(s), and adjust plugin search paths in =ansible.cfg=.
+
+Example playbooks to demonstrate how to use the extensions provided here are included in the =playbooks= directory. To run all of them you can execute =ansible-playbook playbooks/all.yml=
+
+** Filters
+*** boolconv
+
+This filter takes most of the inputs possible in Ansible to look like a bool, and converts them to a controlled string representation. Recognised inputs are all data which become one of true, false, yes, no, 0 or 1 when passed through Ansible variable expansion into Python.
+
+This solves the problem of Ansible auto-converting yes/no to booleans, and eliminates the chance of having malformed values in configuration files due to forgotten quotes in the variable declaration.
+
+A short example playbook demonstrates this problem with a template containing both defaults and sanitised values:
+
+#+BEGIN_SRC yaml
+- template:
+    src: boolconv.j2
+    dest: .out/boolconv
+  vars:
+    var1: yes
+    var2: "yes"
+    var3: true
+#+END_SRC
+
+#+BEGIN_EXAMPLE
+{{var1}} {{var1|boolconv("yesno")}}
+{{var2}} {{var2|boolconv("yesno")}}
+{{var3}} {{var3|boolconv("yesno")}}
+#+END_EXAMPLE
+
+The output shows that Ansible converts =yes= to a bool, which then becomes =True= when converted back to a string.
+
+#+BEGIN_EXAMPLE
+True yes
+yes yes
+True yes
+#+END_EXAMPLE
+
+Note that this also can be a problem for configuration files accepting true/false, but expect them to be lower case. To avoid this issue as well this filter allows controlling case of the output as well. Valid arguments are:
+
+- truefalse
+- TrueFalse
+- TRUEFALSE
+- yesno
+- YesNo
+- YESNO
+- int
+
+The default if no argument is specified is =truefalse=. With a wrong argument as well as inputs not recognisable as one of the values listed above the return value is undefined (typically results in an empty string in Ansible).
