@@ -1,0 +1,12 @@
+- name: checking {{file_path}}
+  ansible.builtin.stat:
+    path: "{{file_path}}"
+    get_mime: yes
+  register: _stat
+
+- ansible.builtin.debug:
+    msg: "{{_stat}}"
+
+- fail:
+    msg: "{{file_path}} is not in the expected state of existence"
+  when: _stat.stat.exists != true

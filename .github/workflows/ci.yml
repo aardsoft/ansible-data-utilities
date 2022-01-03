@@ -10,8 +10,10 @@ jobs:
   ci:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-20.04]
+        ansible: [ 2.9.17, 5.1 ]
 
     steps:
       - uses: actions/checkout@v2
@@ -27,22 +29,14 @@ jobs:
       - name: install python packages
         run: |
           sudo apt-get update
-          #apt-cache search pip
           sudo apt-get -y install python3-virtualenv
         if: matrix.os == 'ubuntu-20.04'
 
-      - name: test ansible 2.9
+      - name: test ansible
         run: |
-          python3 -m virtualenv ansible-2.9 --system-site-packages
-          source ansible-2.9/bin/activate
-          python3 -m pip install ansible==2.9
-          ansible-playbook tests/ansible-info.yml
-          ansible-playbook tests/ansible-ci.yml
-
-      - name: test ansible latest
-        run: |
-          python3 -m virtualenv ansible  --system-site-packages
-          source ansible/bin/activate
-          python3 -m pip install ansible
+          echo "Testing ansible ${{ matrix.ansible }}"
+          python3 -m virtualenv ansible-${{ matrix.ansible }} --system-site-packages
+          source ansible-${{ matrix.ansible }}/bin/activate
+          python3 -m pip install ansible==${{ matrix.ansible }}
           ansible-playbook tests/ansible-info.yml
           ansible-playbook tests/ansible-ci.yml

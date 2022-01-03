@@ -1,0 +1,6 @@
+{{lookup(passdb, ssl_key_passdb+' returnall=true')}}
+{% if ssl_certificate_passdb is defined and ssl_certificate is undefined %}
+{% for _entry in ssl_certificate_passdb %}
+{{lookup(passdb, _entry+' returnall=true')}}
+{% endfor %}
+{% endif %}

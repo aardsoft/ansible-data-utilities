@@ -1,0 +1,25 @@
+- name: verify ansible version
+  ansible.builtin.assert:
+    that: "ansible_version.full is version_compare('2.9.17', '>=')"
+    msg: >
+      Minimum ansible version required for running this is 2.9.17
+  tags:
+    - base_config
+    - access_setup
+
+- ansible.builtin.set_fact:
+    data_utilities_version: 0.1
+  tags:
+    - base_config
+    - access_setup
+
+- ansible.builtin.assert:
+    that: "data_utilities_version is version_compare(data_utilities_minver, '>=')"
+    msg: >
+      Minimum data-utilities version required for running this is {{data_utilities_minver}}.
+      This is version {{data_utilities_version}}. Grab a new release from:
+      https://github.com/aardsoft/ansible-data-utilities
+  when: data_utilities_minver is defined
+  tags:
+    - base_config
+    - access_setup

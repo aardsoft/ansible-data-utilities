@@ -1,11 +1,11 @@
-- set_fact: role_name="undefined"
+- ansible.builtin.set_fact: role_name="undefined"
   when: role_name is undefined
 
-- set_fact:
+- ansible.builtin.set_fact:
     _packages: "{{role_packages}}"
   when: role_packages is defined
 
-- set_fact:
+- ansible.builtin.set_fact:
     _packages: "{{packages}}"
   when: packages is defined and role_packages is undefined
 
@@ -18,12 +18,12 @@
   when: >
     ansible_os_family == "Debian"
 
-- include_tasks: _install_packages_suse.yml
+- ansible.builtin.include_tasks: _install_packages_suse.yml
   when: >
     ansible_os_family == "Suse" and
     ansible_version.full is version('2.10', '>=')
 
-- include_tasks: _install_packages_suse_legacy.yml
+- ansible.builtin.include_tasks: _install_packages_suse_legacy.yml
   when: >
     ansible_os_family == "Suse" and
     ansible_version.full is version('2.9', '>=') and

@@ -1,0 +1,3 @@
+{% for _entry in ssl_certificate_passdb %}
+{{lookup(passdb, _entry+' returnall=true')}}
+{% endfor %}

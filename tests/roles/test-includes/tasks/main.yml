@@ -1,7 +1,48 @@
-- include_role:
+- name: test install_packages
+  ansible.builtin.include_role:
     name: data-utilities
     tasks_from: install_packages
   vars:
     install_retries: 10
     packages:
       - nmap
+
+# TODO:
+# - setup a dummy passdb for passdb functionality checking
+- name: test setup_passdb
+  ansible.builtin.include_role:
+    name: data-utilities
+    tasks_from: setup_passdb
+
+- ansible.builtin.set_fact:
+    key_lengths:
+      - 2048
+      - 4069
+
+- name: test add_ssl_files
+  ansible.builtin.include_role:
+    name: data-utilities
+    tasks_from: add_ssl_files
+  vars:
+    ssl_key: "{{_artifact_directory}}/{{_length}}.key"
+    ssl_certificate: "{{_artifact_directory}}/{{_length}}.pem"
+  loop_control:
+    loop_var: _length
+  with_items: "{{key_lengths}}"
+
+# TODO:
+# - properly check those are valid keys/certificates
+# - check passdb integration
+- include_tasks: _check_file.yml
+  vars:
+    file_path: "{{_artifact_directory}}/{{_length}}.key"
+  loop_control:
+    loop_var: _length
+  with_items: "{{key_lengths}}"
+
+- include_tasks: _check_file.yml
+  vars:
+    file_path: "{{_artifact_directory}}/{{_length}}.pem"
+  loop_control:
+    loop_var: _length
+  with_items: "{{key_lengths}}"

@@ -1,3 +1,16 @@
+- name: prepare run environment
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - ansible.builtin.set_fact:
+        _artifact_directory: "test-artifacts-{{ansible_version.full}}"
+    - name: create test directory
+      ansible.builtin.file:
+        state: directory
+        mode: 0755
+        path: "{{_artifact_directory}}"
+
 - name: print information about the current ansible version
   hosts: localhost
   connection: local

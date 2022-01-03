@@ -1,0 +1,59 @@
+#
+#
+# - name: create keys and certificates
+#   include_role:
+#     name: data-utilities
+#     tasks_from: add_ssl_files
+#   vars:
+#     ssl_key: /etc/ssl/key.pem
+#     ssl_certificate: /etc/ssl/certificate.pem
+
+- ansible.builtin.include_role:
+    name: data-utilities
+    tasks_from: install_packages
+  vars:
+    role_packages:
+      - python3-cryptography
+
+- name: create key/certificate file from passdb
+  ansible.builtin.template:
+    src: ssl_key.j2
+    dest: "{{ssl_key}}"
+    mode: 0600
+  when: >
+    ssl_key is defined and
+    ssl_key_passdb is defined
+
+- name: create key/certificate file
+  openssl_privatekey:
+    path: "{{ssl_key}}"
+    size: "{{ssl_size|default(2048)}}"
+  when: >
+    ssl_key is defined and
+    ssl_key_passdb is undefined
+
+- name: create separate certificate files
+  ansible.builtin.template:
+    src: ssl_certificate.j2
+    dest: "{{ssl_certificate}}"
+    mode: 0600
+  when: >
+    ssl_certificate is defined and
+    ssl_certificate_passdb is defined
+
+- name: check if certificate file is present
+  ansible.builtin.stat:
+    path: "{{ssl_certificate}}"
+  register: _certificate_stat
+  when: >
+    ssl_certificate is defined and
+    ssl_certificate_passdb is undefined
+
+# without certificates in passdb we need to check if the certificate is present,
+# and if not create a self-signed certificate
+- name: create self-signed certificate files
+  ansible.builtin.command: "openssl req -x509 -nodes -days 365 -key {{ssl_key}} -out {{ssl_certificate}} -subj '/CN=*/'"
+  when: >
+    ssl_certificate is defined and
+    ssl_certificate_passdb is undefined and
+    _certificate_stat.stat.exists == False
