@@ -1,0 +1,5 @@
+- name: Install packages for {{role_name}} (SuSE)
+  zypper:
+    name: "{{_packages}}"
+    state: present
+  retries: "{{install_retries|default(3)}}"

@@ -1,0 +1,48 @@
+name: CI run
+
+on:
+  push:
+    branches: [ master ]
+
+  workflow_dispatch:
+
+jobs:
+  ci:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-20.04]
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          persist-credentials: false
+
+      - name: print run information
+        run: |
+          echo "Running on ${{ matrix.os }}"
+          echo "Python: "
+          python --version
+
+      - name: install python packages
+        run: |
+          sudo apt-get update
+          #apt-cache search pip
+          sudo apt-get -y install python3-virtualenv
+        if: matrix.os == 'ubuntu-20.04'
+
+      - name: test ansible 2.9
+        run: |
+          python3 -m virtualenv ansible-2.9 --system-site-packages
+          source ansible-2.9/bin/activate
+          python3 -m pip install ansible==2.9
+          ansible-playbook tests/ansible-info.yml
+          ansible-playbook tests/ansible-ci.yml
+
+      - name: test ansible latest
+        run: |
+          python3 -m virtualenv ansible  --system-site-packages
+          source ansible/bin/activate
+          python3 -m pip install ansible
+          ansible-playbook tests/ansible-info.yml
+          ansible-playbook tests/ansible-ci.yml

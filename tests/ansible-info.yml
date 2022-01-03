@@ -1,0 +1,8 @@
+- name: print information about the current ansible version
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - debug:
+        msg:
+          - "Ansible version: {{ansible_version.full}}"

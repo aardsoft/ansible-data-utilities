@@ -1,5 +1,7 @@
 * Filters and inventory manipulation scripts for Ansible              :TOC_4:
   - [[#introduction][Introduction]]
+  - [[#includes-for-other-roles][Includes for other roles]]
+    - [[#install_packages][install_packages]]
   - [[#filters][Filters]]
     - [[#boolconv][boolconv]]
 
@@ -10,6 +12,32 @@ This repository hosts some of our publicly available Ansible extensions, as well
 The recommended way of using this collection is to include it as a git submodule into your Ansible configuration(s), and adjust plugin search paths in =ansible.cfg=.
 
 Example playbooks to demonstrate how to use the extensions provided here are included in the =playbooks= directory. To run all of them you can execute =ansible-playbook playbooks/all.yml=
+
+** Includes for other roles
+*** install_packages
+
+This include handles package installation for the provided packages on the following distribution/package manager combinations:
+
+- SuSE with zypper
+- RedHat/CentOS/Fedora with yum
+- RedHat/CentOS/Fedora with dnf
+- Debian/Ubuntu with apt
+
+It takes the following variables:
+
+- packages, a list of packages to install.
+- install_retries, the number of retries if package installation fails. Defaults to =3=.
+
+Example usage:
+#+BEGIN_SRC
+- include_role:
+    name: data-utilities
+    tasks_from: install_packages
+  vars:
+    install_retries: 10
+    packages:
+      - nmap
+#+END_SRC
 
 ** Filters
 *** boolconv

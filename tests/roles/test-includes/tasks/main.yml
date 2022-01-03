@@ -1,0 +1,7 @@
+- include_role:
+    name: data-utilities
+    tasks_from: install_packages
+  vars:
+    install_retries: 10
+    packages:
+      - nmap
