@@ -39,4 +39,4 @@ jobs:
           source ansible-${{ matrix.ansible }}/bin/activate
           python3 -m pip install ansible==${{ matrix.ansible }}
           ansible-playbook tests/ansible-info.yml
-          ansible-playbook tests/ansible-ci.yml
+          ansible-playbook tests/ansible-ci.yml -e destructive_tests=True

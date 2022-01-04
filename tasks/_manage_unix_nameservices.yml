@@ -1,0 +1,57 @@
+- name: set resolv location to site, if necessary
+  tags:
+    - base_config
+    - access_setup
+  ansible.builtin.set_fact:
+    resolv_location: "{{ site_region }}"
+  when: site_region is defined and resolv_location is undefined
+
+- name: add resolv.conf
+  tags:
+    - base_config
+    - access_setup
+  ansible.builtin.copy:
+    src: resolv.conf.{{ resolv_location }}
+    dest: /etc/resolv.conf
+    owner: root
+    group: root
+    mode: 0644
+  when: resolv_location is defined
+
+- name: add resolv.conf (template)
+  tags:
+    - base_config
+    - access_setup
+  ansible.builtin.template:
+    src: resolv.conf.j2
+    dest: /etc/resolv.conf
+    owner: root
+    group: root
+    mode: 0644
+  when: nameservers is defined
+
+- name: add hosts
+  ansible.builtin.template:
+    src: hosts.j2
+    dest: /etc/hosts
+    owner: root
+    group: root
+    mode: 0644
+  tags:
+    - base_config
+  when: >
+    ansible_virtualization_type != "docker"
+
+- name: add resolved configuration
+  ansible.builtin.template:
+    src: resolved.conf.j2
+    dest: /etc/systemd/resolved.conf
+    owner: root
+    group: root
+    mode: 0644
+  tags:
+    - base_config
+# Don't restart for now - it's not much used yet
+#  notify:
+#    - restart resolved
+  when: ansible_service_mgr == 'systemd'

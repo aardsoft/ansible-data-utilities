@@ -1,3 +1,13 @@
+# currently skipped includes, some of which required running against clients
+# of correct OS:
+# - manage_time
+# - manage_hostname
+# - manage_nameservices
+
+- ansible.builtin.debug:
+    msg: "Destructive tests: {{destructive_tests}}"
+  when: destructive_tests is defined
+
 - name: test install_packages
   ansible.builtin.include_role:
     name: data-utilities
@@ -33,16 +43,41 @@
 # TODO:
 # - properly check those are valid keys/certificates
 # - check passdb integration
-- include_tasks: _check_file.yml
+- ansible.builtin.include_tasks: _check_file.yml
   vars:
     file_path: "{{_artifact_directory}}/{{_length}}.key"
   loop_control:
     loop_var: _length
   with_items: "{{key_lengths}}"
 
-- include_tasks: _check_file.yml
+- ansible.builtin.include_tasks: _check_file.yml
   vars:
     file_path: "{{_artifact_directory}}/{{_length}}.pem"
   loop_control:
     loop_var: _length
   with_items: "{{key_lengths}}"
+
+- name: test manage_time
+  ansible.builtin.include_role:
+    name: data-utilities
+    tasks_from: manage_time
+  when: >
+    destructive_tests is defined and
+    destructive_tests == 'yes'
+
+- name: test manage_hostname
+  ansible.builtin.include_role:
+    name: data-utilities
+    tasks_from: manage_hostname
+  vars:
+    hostname: "test-{{ansible_version.full}}"
+  when: >
+    destructive_tests is defined and
+    destructive_tests == "True"
+
+- name: test manage_nameservices
+  ansible.builtin.include_role:
+    name: data-utilities
+    tasks_from: manage_nameservices
+  when: >
+    destructive_tests is defined

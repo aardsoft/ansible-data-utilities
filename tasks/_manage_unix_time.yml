@@ -1,0 +1,36 @@
+- name: set /etc/timezone
+  ansible.builtin.copy:
+    content: "{{ host_timezone }}"
+    dest: /etc/timezone
+    mode: 0644
+  tags:
+    - base_config
+
+- name: set /etc/localtime
+  ansible.builtin.file:
+    src: "/usr/share/zoneinfo/{{ host_timezone }}"
+    dest: /etc/localtime
+    state: link
+    force: yes
+  tags:
+    - base_config
+
+- ansible.builtin.stat: path=/etc/adjtime
+  register: _adjtime
+  tags:
+    - base_config
+  when: >
+    ansible_os_family != "Darwin"
+
+- name: add adjtime
+  ansible.builtin.template:
+    src: adjtime.j2
+    dest: /etc/adjtime
+    owner: root
+    group: root
+    mode: 0644
+  when: >
+    _adjtime is defined and
+    _adjtime.stat.exists == False
+  tags:
+    - base_config

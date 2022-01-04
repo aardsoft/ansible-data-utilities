@@ -1,0 +1,5 @@
+- ansible.builtin.include_tasks: _manage_windows_hostname.yml
+  when: ansible_os_family == "Windows"
+
+- ansible.builtin.include_tasks: _manage_unix_hostname.yml
+  when: ansible_os_family != "Windows"

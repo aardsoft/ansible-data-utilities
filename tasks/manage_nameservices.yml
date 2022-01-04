@@ -1,0 +1,5 @@
+#- ansible.builtin.include_tasks: _manage_windows_nameservices.yml
+#  when: ansible_os_family == "Windows"
+
+- ansible.builtin.include_tasks: _manage_unix_nameservices.yml
+  when: ansible_os_family != "Windows"

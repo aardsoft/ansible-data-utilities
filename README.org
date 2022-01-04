@@ -2,8 +2,12 @@
   - [[#introduction][Introduction]]
   - [[#includes-for-other-roles][Includes for other roles]]
     - [[#add_ssl_files][add_ssl_files]]
-    - [[#check_versions][check_versions]]
     - [[#install_packages][install_packages]]
+  - [[#includes-used-by-basic-host][Includes used by basic-host]]
+    - [[#check_versions][check_versions]]
+    - [[#manage_hostname][manage_hostname]]
+    - [[#manage_nameservices][manage_nameservices]]
+    - [[#manage_time][manage_time]]
     - [[#setup_passdb][setup_passdb]]
   - [[#filters][Filters]]
     - [[#boolconv][boolconv]]
@@ -58,25 +62,6 @@ When using passdb entries for key and certificates it also is possible to have k
 
 Using a single file without passdb entries will result in certificate generation being skipped, which quite likely will lead to failures.
 
-*** check_versions
-
-This include checks if the running Ansible version matches the version range this role has been tested with. Additionally it also exports the variable =data_utilities_version=.
-
-The =basic-host= role includes this file, so unless another role needs to use a higher =data-utilities= version than =basic-host= was tested for including this file should not be necessary.
-
-For checking if data utilities is available in the correct version the =data_utilities_minver= variable can be set:
-
-#+BEGIN_SRC
-- include_role:
-    name: data-utilities
-    tasks_from: check_versions
-  vars:
-    data_utilities_minver: 0.1
-  tags:
-    - base_config
-    - access_setup
-#+END_SRC
-
 *** install_packages
 
 This include handles package installation for the provided packages on the following distribution/package manager combinations:
@@ -101,6 +86,53 @@ Example usage:
     packages:
       - nmap
 #+END_SRC
+
+
+** Includes used by basic-host
+This section describes includes used by the [[https://github.com/aardsoft/ansible-role-basic-host][basic-host]] role. The documentation here is mainly useful for the variables used to adjust their behaviour - but also may be useful for sites where the complete configuration applied by =basic-host= is not desirable.
+
+*** check_versions
+
+This include checks if the running Ansible version matches the version range this role has been tested with. Additionally it also exports the variable =data_utilities_version=.
+
+The =basic-host= role includes this file, so unless another role needs to use a higher =data-utilities= version than =basic-host= was tested for including this file should not be necessary.
+
+For checking if data utilities is available in the correct version the =data_utilities_minver= variable can be set:
+
+#+BEGIN_SRC
+- include_role:
+    name: data-utilities
+    tasks_from: check_versions
+  vars:
+    data_utilities_minver: 0.1
+  tags:
+    - base_config
+    - access_setup
+#+END_SRC
+
+*** manage_hostname
+
+This include tries to set the system hostname. On Windows this may require a reboot - execution continues once the system is reachable again.
+
+For setting the hostname either the =hostname= variable is used, or - if missing - the hostname is generated from the inventory hostname.
+
+*** manage_nameservices
+
+This include configures name services for a system - this mainly, but not only, covers DNS. Windows currently is not supported.
+
+Nameservers from a list in the variable =nameservers= are used, if available. It usually makes sense to set a default in groupvars for all, and override it for other systems/groups.
+
+There also is some legacy support for copying in prefilled resolv.conf templates based on =resolv_location= and =site_region= settings - this was implemented due to legacy Ansible restriction, and should not be used in new deployments.
+
+*** manage_time
+
+This include configures timezone and other time related settings. On Windows this also sets NTP servers. For Linux this is handled in a separate ntp-client role.
+
+NTP servers are read from a list in the =ntp_servers= variable. This typically should be set in the default groupvars for all, with overrides as needed.
+
+For Windows the timezone is configured in =host_timezone_win=, using [[https://docs.microsoft.com/en-us/previous-versions/windows/embedded/ms912391(v=winembedded.11)][Microsofts time zone names]]. For other system standard TZ database names in the =host_timezone= variable are used.
+
+For all systems the hardware clock is set to UTC.
 
 *** setup_passdb
 

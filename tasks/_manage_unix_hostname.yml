@@ -1,0 +1,29 @@
+- ansible.builtin.stat: path=/etc/hostname
+  register: hostname_file
+  tags:
+    - base_config
+  when: >
+    ansible_os_family != "Darwin"
+
+- name: set hostname (/etc/hostname)
+  ansible.builtin.template:
+    src: hostname.j2
+    dest: /etc/hostname
+    mode: 0644
+  when: >
+    ansible_os_family != "Darwin" and
+    ansible_virtualization_type != "docker"
+
+- name: set runtime hostname (systemd)
+  ansible.builtin.hostname:
+    name: "{{ hostname | default(inventory_hostname.split('.')[0]) }}"
+    use: systemd
+  when: >
+    ansible_service_mgr == 'systemd'
+
+- name: set runtime hostname (darwin)
+  ansible.builtin.hostname:
+    name: "{{ hostname | default(inventory_hostname.split('.')[0]) }}"
+    use: darwin
+  when: >
+    ansible_os_family == "Darwin"
