@@ -35,7 +35,7 @@
     src: hosts.j2
     dest: /etc/hosts
     owner: root
-    group: root
+    group: "{{_root_group|default('root')}}"
     mode: 0644
   tags:
     - base_config
