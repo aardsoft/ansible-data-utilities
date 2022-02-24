@@ -26,4 +26,14 @@
     name: "{{ hostname | default(inventory_hostname.split('.')[0]) }}"
     use: darwin
   when: >
+    ansible_version.full is version('2.10', '>=') and
+    ansible_os_family == "Darwin"
+
+- name: set runtime hostname (darwin, legacy)
+  ansible.builtin.hostname:
+    name: "{{ hostname | default(inventory_hostname.split('.')[0]) }}"
+    use: generic
+  when: >
+    ansible_version.full is version('2.9', '>=') and
+    ansible_version.full is version('2.10', '<') and
     ansible_os_family == "Darwin"
