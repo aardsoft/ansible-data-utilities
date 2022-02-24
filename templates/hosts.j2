@@ -12,6 +12,9 @@
 #
 {% set _hostname = hostname | default(inventory_hostname.split('.')[0]) %}
 127.0.0.1	localhost {%if hostname_in_hosts|default(false)==true%}{{_hostname}}{%endif%}
+{%if ansible_os_family == 'Darwin' %}
+255.255.255.255	broadcasthost
+{% endif %}
 
 # special IPv6 addresses
 ::1             localhost ipv6-localhost ipv6-loopback {%if hostname_in_hosts|default(false)==true%}{{_hostname}}{%endif%}
