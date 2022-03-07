@@ -18,6 +18,7 @@
   ansible.builtin.hostname:
     name: "{{ hostname | default(inventory_hostname.split('.')[0]) }}"
     use: systemd
+  ignore_errors: True
   when: >
     ansible_service_mgr == 'systemd'
 
