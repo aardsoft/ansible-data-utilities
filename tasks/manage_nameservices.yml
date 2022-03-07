@@ -3,3 +3,6 @@
 
 - ansible.builtin.include_tasks: _manage_unix_nameservices.yml
   when: ansible_os_family != "Windows"
+  tags:
+    - base_config
+    - access_setup
