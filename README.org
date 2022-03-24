@@ -157,7 +157,7 @@ Tasks/roles should use this variable to guard sections prompting for credentials
 ** Filters
 *** boolconv
 
-This filter takes most of the inputs possible in Ansible to look like a bool, and converts them to a controlled string representation. Recognised inputs are all data which become one of true, false, yes, no, 0 or 1 when passed through Ansible variable expansion into Python.
+This filter takes most of the inputs possible in Ansible to look like a bool, and converts them to a controlled string representation. Recognised inputs are all data which become one of true, false, yes, no, on, off, 0 or 1 when passed through Ansible variable expansion into Python.
 
 This solves the problem of Ansible auto-converting yes/no to booleans, and eliminates the chance of having malformed values in configuration files due to forgotten quotes in the variable declaration.
 
@@ -195,6 +195,8 @@ Note that this also can be a problem for configuration files accepting true/fals
 - yesno
 - YesNo
 - YESNO
+- onoff
+- ONOFF
 - int
 
 The default if no argument is specified is =truefalse=. With a wrong argument as well as inputs not recognisable as one of the values listed above the return value is undefined (typically results in an empty string in Ansible).
