@@ -1,5 +1,13 @@
 - ansible.builtin.include_tasks: _manage_windows_hostname.yml
-  when: ansible_os_family == "Windows"
+  when: >
+    ansible_os_family == "Windows" and
+    ansible_version.full is version('2.10', '>=')
+
+- ansible.builtin.include_tasks: _manage_windows_hostname_legacy.yml
+  when: >
+    ansible_os_family == "Windows" and
+    ansible_version.full is version('2.9', '>=') and
+    ansible_version.full is version('2.10', '<')
 
 - ansible.builtin.include_tasks: _manage_unix_hostname.yml
   when: ansible_os_family != "Windows"

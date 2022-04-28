@@ -1,0 +1,12 @@
+- name: configure windows hostname
+  win_hostname:
+    name: "{{inventory_hostname}}"
+  register: hostname_status
+
+# if a host or group has troubles coming up reliably
+# set windows_post_reboot_delay either in group or host vars.
+- name: reboot after hostname change
+  win_reboot:
+    reboot_timeout: 600
+    post_reboot_delay: "{{windows_post_reboot_delay|default(0)}}"
+  when: hostname_status.reboot_required
