@@ -93,9 +93,9 @@ This section describes includes used by the [[https://github.com/aardsoft/ansibl
 
 *** check_versions
 
-This include checks if the running Ansible version matches the version range this role has been tested with. Additionally it also exports the variable =data_utilities_version=.
+This include checks if the running Ansible version matches the version range this role has been tested with. Additionally it also exports the variable =data_utilities_version=, and sets up some default variables. This also implicitely registers filter paths with Ansible.
 
-The =basic-host= role includes this file, so unless another role needs to use a higher =data-utilities= version than =basic-host= was tested for including this file should not be necessary.
+The =basic-host= role includes this file, so unless another role needs to use a higher =data-utilities= version than =basic-host= was tested for including this file should not be necessary. When not using =basic-host=, or using multiple roles before =basic-host= this include should be included early on in the play.
 
 For checking if data utilities is available in the correct version the =data_utilities_minver= variable can be set:
 

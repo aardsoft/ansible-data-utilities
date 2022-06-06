@@ -1,0 +1,46 @@
+- ansible.builtin.set_fact:
+    is_wsl: False
+  tags:
+    - base_config
+    - access_setup
+
+- ansible.builtin.set_fact: firewalld_available=False
+  when: firewalld_available is undefined
+  tags:
+    - base_config
+    - access_setup
+
+# admin user setup
+- ansible.builtin.set_fact:
+    adm_uid: 10000
+  when: adm_uid is undefined
+  tags:
+    - base_config
+    - access_setup
+
+- ansible.builtin.set_fact:
+    adm_gid: 10000
+  when: adm_gid is undefined
+  tags:
+    - base_config
+    - access_setup
+
+- ansible.builtin.set_fact:
+    adm_user: management
+  when: adm_user is undefined
+  tags:
+    - base_config
+    - access_setup
+
+- ansible.builtin.set_fact:
+    adm_group: management
+  when: adm_group is undefined
+  tags:
+    - base_config
+    - access_setup
+
+- ansible.builtin.set_fact:
+    _root_group: "{% if ansible_os_family == 'Darwin' %}wheel{% else %}root{% endif %}"
+  tags:
+    - base_config
+    - access_setup
