@@ -1,0 +1,57 @@
+- name: create additional firewalld zones
+  firewalld:
+    zone: "{{__zone}}"
+    state: present
+    permanent: yes
+  loop_control:
+    loop_var: __zone
+  with_items: "{{firewalld_zones}}"
+  register: __zones_changed
+  when: >
+    firewalld_zones is defined and
+    (__zone.state is undefined or
+    __zone.state == "present")
+
+- debug: msg="{{__zones_changed}}"
+
+- name: reload firewalld
+  systemd:
+    name: firewalld
+    state: reloaded
+  when: >
+    __zones_changed is defined and
+    __zones_changed is changed
+
+- name: configure masquerading for zones
+  firewalld:
+    zone: "{{__zone}}"
+    immediate: yes
+    state: enabled
+    permanent: yes
+    masquerade: yes
+  loop_control:
+    loop_var: __zone
+  with_items: "{{firewalld_masquerade_zones}}"
+  when: >
+    firewalld_available == True and
+    firewalld_masquerade_zones is defined
+
+- name: configure firewalld zones for networkd managed interfaces
+  firewalld:
+    zone: "{{ item.value.zone }}"
+    interface: "{{ item.key }}"
+    permanent: true
+    state: enabled
+    immediate: true
+  with_dict: "{{network_nodes[inventory_hostname].networks |default({})}}"
+  when: >
+    firewalld_available == True and
+    item.value.zone is defined
+  tags:
+    - access_setup
+
+- name: configure firewalld rules
+  include: _firewalld_rules.yml
+  with_dict: "{{firewalld_rules}}"
+  when: >
+    firewalld_available == True and firewalld_rules is defined

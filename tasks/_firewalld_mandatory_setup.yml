@@ -1,0 +1,15 @@
+- name: add firewalld config file
+  template:
+    src: firewalld.conf.j2
+    dest: /etc/firewalld/firewalld.conf
+    owner: root
+    group: root
+    mode: 0600
+  ignore_errors: True
+  register: firewalld_config
+
+- name: restart firewalld
+  service: name=firewalld state=restarted
+  ignore_errors: True
+  when: >
+    firewalld_config is changed
