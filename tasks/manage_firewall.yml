@@ -2,7 +2,8 @@
 #  when: >
 #    ansible_os_family == "Windows"
 
-- ansible.builtin.include_tasks: _manage_linux_firewall.yml
+- name: try setting up firewalld
+  ansible.builtin.include_tasks: _manage_linux_firewall.yml
   when: >
     ansible_os_family != "Windows" and
     ansible_os_family != "Darwin"
