@@ -11,6 +11,7 @@
     - [[#setup_passdb][setup_passdb]]
   - [[#filters][Filters]]
     - [[#boolconv][boolconv]]
+    - [[#ipv6_explode][ipv6_explode]]
 
 ** Introduction
 
@@ -200,3 +201,7 @@ Note that this also can be a problem for configuration files accepting true/fals
 - int
 
 The default if no argument is specified is =truefalse=. With a wrong argument as well as inputs not recognisable as one of the values listed above the return value is undefined (typically results in an empty string in Ansible).
+
+*** ipv6_explode
+
+Explode an IPv6 address, i.e., transforms something like =2a0b:5c81:300:9254::1= into =2a0b:5c81:0300:9254:0000:0000:0000:0001=. This will always return the IP address, but accepts arguments with and without prefix.
