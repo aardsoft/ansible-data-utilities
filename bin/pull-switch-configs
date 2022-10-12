@@ -1,0 +1,86 @@
+#!/bin/bash
+
+declare -A switches=()
+declare -A switch_addresses=()
+declare -A switch_users=()
+declare -A switch_passdb=()
+declare -A ssh_args=()
+
+switch_passdb_entry=switches/management
+
+if [ -f .switches ]; then
+    . .switches
+fi
+#switch_default_domain=default.aardsoft.fi
+
+#global_ssh_args="-F/dev/null -o PubkeyAuthentication=no"
+global_ssh_args="-o PubkeyAuthentication=no"
+
+SSHPASS=`pass $switch_passdb_entry`
+if [ $? -ne 0 ]; then
+    echo "password not found through pass, setup broken?"
+    exit 1
+fi
+export SSHPASS
+
+if [ -n "$1" ]; then
+    _switches=$@
+else
+    _switches="${!switches[@]}"
+fi
+
+echo "Switches to pull: $_switches"
+
+for switch in $_switches; do
+    _type=${switches[$switch]}
+
+    if [ "${ssh_args[$switch]}" ]; then
+        echo "Loading specific SSH arguments for $switch"
+        _switch_ssh_args="${ssh_args[$switch]}"
+    else
+        echo "Using global SSH arguments for $switch"
+        _switch_ssh_args="$global_ssh_args"
+    fi
+
+    if [ ${switch_addresses[$switch]} ]; then
+        _host="${switch_addresses[$switch]}"
+    elif [[ "$switch" == *"."* ]]; then
+        _host="$switch"
+    elif [ "$switch_default_domain" != "" ]; then
+        _host="$switch.$switch_default_domain"
+    else
+        _host="$switch"
+    fi
+    echo "Pulling from $switch ($_type) at $_host"
+
+    case "$_type" in
+        "dell")
+            _ssh_args="$_switch_ssh_args"
+            sshpass -e scp $_ssh_args management@$_host:startup-config switch-configs/config.$switch
+            ;;
+        "fs")
+            _ssh_args="$_switch_ssh_args"
+            sshpass -e scp $_ssh_args management@$_host:startup-config.conf switch-configs/config.$switch
+            ;;
+        "fs_sftp")
+            _ssh_args="$_switch_ssh_args"
+            sshpass -e sftp $_ssh_args management@$_host:/startup-config switch-configs/config.$switch
+            ;;
+        "hp")
+            _ssh_args="$_switch_ssh_args -c aes128-cbc"
+            sshpass -e scp $_ssh_args management@$_host:/startup.cfg switch-configs/config.$switch
+            ;;
+        "zyxel")
+            _ssh_args="$_switch_ssh_args -o KexAlgorithms=+diffie-hellman-group1-sha1"
+            sshpass -e sftp $_ssh_args management@$_host:/config switch-configs/config.$switch
+            ;;
+        "mikrotik")
+            _ssh_args="$_switch_ssh_args"
+            sshpass -e ssh $_ssh_args management@$_host export file=startup-config
+            sshpass -e scp $_ssh_args management@$_host:startup-config.rsc switch-configs/config.$switch
+            ;;
+        *)
+            echo "Unknown type $_type, skipping"
+            ;;
+    esac
+done
