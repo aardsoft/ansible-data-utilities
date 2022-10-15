@@ -1,1 +1,3 @@
 - import_playbook: boolconv.yml
+
+- import_playbook: inventory.yml

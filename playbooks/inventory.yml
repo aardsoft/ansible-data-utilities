@@ -1,0 +1,22 @@
+- name: dump inventory
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - debug:
+        msg:
+          - "Warnings: "
+          - "{{site_parser_warnings}}"
+      when: >
+        site_parser_warnings is defined and
+        site_parser_warnings|length>0
+    - debug:
+        msg:
+          - "Errors: "
+          - "{{site_parser_errors}}"
+      when: >
+        site_parser_errors is defined and
+        site_parser_errors|length>0
+    - copy:
+        dest: "{{debug_variable_file|default('/tmp/debug.yml')}}"
+        content: '{{hostvars | to_nice_yaml}}'
