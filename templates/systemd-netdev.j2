@@ -1,0 +1,76 @@
+#jinja2: lstrip_blocks: True
+# {{ ansible_managed }}
+# See: https://www.freedesktop.org/software/systemd/man/systemd.netdev.html
+#
+# Currently only some basics for static addresses, dhcp and vlan are
+# implemented. Some options are present but disabled to make adding
+# additional functionality once needed easier. Do not manually edit
+# the ansible created files.
+
+#[Match]
+#Host=
+#Virtualization=
+#Architecture=
+#KernelCommandLine=
+
+[NetDev]
+#Description=
+Name={{_iface.key}}
+Kind={{_iface.value.type}}
+#MTUBytes=
+{% if _iface.value.type == "dummy" %}
+MACAddress={{ _iface.value.hwaddr }}
+{% endif %}
+
+{% if _iface.value.type == "vlan" %}
+[VLAN]
+{% if _iface.value.vlan is number %}
+Id={{_iface.value.vlan}}
+{% else %}
+Id={{vlans[_iface.value.vlan]}}
+{% endif %}
+#GVRP=
+#MVRP=
+#LooseBindings=
+#ReorderHeader=
+{% endif %}
+
+{% if _iface.value.type == "bond" %}
+[Bond]
+Mode={{ _iface.value.bond_mode | default('balance-rr') }}
+ {% if _iface.value.bond_mode is defined %}
+  {% if _iface.value.bond_mode == '802.3ad' or
+        _iface.value.bond_mode == 'balance-xor' or
+        _iface.value.bond_mode == 'balance-tlb' %}
+TransmitHashPolicy={{ _iface.value.transmit_hash_policy | default('layer2') }}
+  {% endif %}
+  {% if _iface.value.bond_mode == '802.3ad' %}
+LACPTransmitRate={{ _iface.value.lacp_transmit_rate | default('slow') }}
+  {% endif %}
+  {% if _iface.value.bond_mode == 'balance-alb' or
+        _iface.value.bond_mode == 'balance-tlb' %}
+LearnPacketIntervalSec={{ _iface.value.learn_packet_interval_sec | default(1) }}
+  {% endif %}
+  {% if _iface.value.bond_mode == 'balance-rr' %}
+PacketsPerSlave={{ _iface.value.packets_per_slave | default(1) }}
+  {% endif %}
+  {% if _iface.value.bond_mode == 'active-backup' %}
+GratuitousARP={{ _iface.value.gratuitous_arp | default(1) }}
+  {% endif %}
+ {% endif %}
+MIIMonitorSec={{ _iface.value.mii_monitor_sec | default(0) }}
+UpDelaySec={{ _iface.value.up_delay_sec | default(0) }}
+DownDelaySec={{ _iface.value.down_delay_sec | default(0) }}
+{% if _iface.value.arp_ip_targets is defined %}
+ARPValidate={{ _iface.value.arp_validate | default('none') }}
+ARPIntervalSec={{ _iface.value.arp_interval_sec | default(0) }}
+ARPIPTargets={{ _iface.value.arp_ip_targets }}
+ARPAllTargets={{ _iface.value.arp_all_targets | default('any') }}
+{% endif %}
+ {% if ansible_distribution != "CentOS" %}
+PrimaryReselectPolicy={{ _iface.value.primary_reselect_policy | default('better') }}
+ResendIGMP={{ _iface.value.resend_igmp | default(1) }}
+AllSlavesActive={{ _iface.value.all_slaves_active | default('0') }}
+MinLinks={{ _iface.value.min_links | default(0) }}
+ {% endif %}
+{% endif %}

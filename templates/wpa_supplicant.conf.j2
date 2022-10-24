@@ -1,0 +1,18 @@
+#jinja2: lstrip_blocks: True
+# {{ ansible_managed }}
+# Note: {{__wpa_supplicant_ifaces|count}} interface(s) detected for WPA
+
+ctrl_interface=/var/run/wpa_supplicant
+ctrl_interface_group=wheel
+
+{% for _iface_key in network_nodes[inventory_hostname].networks %}
+  {% set _iface = network_nodes[inventory_hostname].networks[_iface_key] %}
+  {% if _iface.wlan_ssid is defined and _iface.wlan_passdb_entry is defined %}
+# {{_iface_key}}
+network={
+	ssid="{{_iface.wlan_ssid}}"
+	psk={{lookup(passdb, _iface.wlan_passdb_entry)}}
+
+}
+  {% endif %}
+{% endfor %}

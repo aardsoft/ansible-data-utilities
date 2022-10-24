@@ -1,0 +1,324 @@
+#jinja2: lstrip_blocks: True
+# {{ ansible_managed }}
+# See: https://www.freedesktop.org/software/systemd/man/systemd.network.html
+#
+# Currently only some basics for static addresses, dhcp and vlan are
+# implemented. Some options are present but disabled to make adding
+# additional functionality once needed easier. Do not manually edit
+# the ansible created files.
+
+[Match]
+{% if _iface.value.match is undefined %}
+ {% if _iface.value.type is undefined or _iface.value.type is defined and _iface.value.type != "veth" %}
+Name={{_iface.key}}
+ {% endif %}
+ {% if _iface.value.hwaddr is defined and _iface.value.type is defined and _iface.value.type == "veth" %}
+MACAddress={{ _iface.value.hwaddr }}
+ {% endif %}
+{% else %}
+ {% if _iface.value.match.name is defined %}
+Name={{_iface.value.match.name}}
+ {% endif %}
+ {% if _iface.value.match.path is defined %}
+Path={{_iface.value.match.path}}
+ {% endif %}
+ {% if _iface.value.match.driver is defined %}
+Driver={{_iface.value.match.driver}}
+ {% endif %}
+ {% if _iface.value.match.type is defined %}
+Type={{_iface.value.match.type}}
+ {% endif %}
+ {% if _iface.value.match.host is defined %}
+Host={{_iface.value.match.host}}
+ {% endif %}
+ {% if _iface.value.match.virtualization is defined %}
+Virtualization={{_iface.value.match.virtualization}}
+ {% endif %}
+ {% if _iface.value.match.architecture is defined %}
+Virtualization={{_iface.value.match.architecture}}
+ {% endif %}
+ {% if _iface.value.match.mac_address is defined %}
+MACAddress={{_iface.value.match.mac_address}}
+ {% endif %}
+{% endif %}
+
+[Link]
+{# for now only force MAC addresses on bridges #}
+{% if _iface.value.hwaddr is defined and _iface.value.type is defined and _iface.value.type == "bridge" %}
+MACAddress={{ _iface.value.hwaddr }}
+{% endif %}
+{% if _iface.value.mtu is defined %}
+MTUBytes={{ _iface.value.mtu }}
+{% endif %}
+#ARP=
+# default: no, set it explicitely
+ {% if ansible_distribution != "CentOS" %}
+Unmanaged={{ _iface.value.unmanaged | default('no')}}
+ {% endif %}
+
+[Network]
+#Description=
+{% if _iface.value.static is defined and _iface.value.static == True %}
+{# TODO: check if it's a dict. in that case, add multiple address #}
+{#       sections instead                                         #}
+{# TODO: add prefixes #}
+  {% if _iface.value.ipv4 is defined %}
+Address={{ _iface.value.ipv4 }}
+  {% endif %}
+  {% if _iface.value.gateway is defined %}
+Gateway={{ _iface.value.gateway }}
+  {% endif %}
+{% elif _iface.value.static is defined and _iface.value.static == False %}
+DHCP=yes
+{# if ipv4 and hwaddr is defined, but static is not assume that the address #}
+{# is configured in the DHCP server as static binding                       #}
+{% elif _iface.value.ipv4 is defined and _iface.value.hwaddr is defined %}
+DHCP=yes
+{# check if dhcp is explicitely configured #}
+{% elif _iface.value.dhcp is defined %}
+DHCP={{ _iface.value.dhcp }}
+{# default to not checking DHCP #}
+{% else %}
+DHCP=no
+{% endif %}
+
+{% if _iface.value.type is defined and _iface.value.type == "bridge" %}
+IPForward={{ _iface.value.forwarding|default("yes") }}
+{% else %}
+IPForward={{ _iface.value.forwarding|default("no") }}
+{% endif %}
+
+IPMasquerade={{ _iface.value.masquerade|default("no") }}
+
+#BindCarrier=
+{% if _iface.value.ipv6 is defined %}
+  {% if _iface.value.ipv6.privacy_extensions is defined %}
+IPv6PrivacyExtensions={{_iface.value.ipv6.privacy_extensions}}
+  {% endif %}
+  {% if _iface.value.ipv6.accept_ra is defined %}
+IPv6AcceptRA={{_iface.value.ipv6.accept_ra}}
+  {% endif %}
+  {% if _iface.value.ipv6.duplicate_address_detection is defined %}
+IPv6DuplicateAddressDetection={{_iface.value.ipv6.duplicate_address_detection}}
+  {% endif %}
+  {% if _iface.value.ipv6.hop_limit is defined %}
+IPv6HopLimit={{_iface.value.ipv6.hop_limit}}
+  {% endif %}
+  {% if _iface.value.ipv6.proxy_ndp is defined %}
+IPv6ProxyNDP={{_iface.value.ipv6.proxy_ndp}}
+  {% endif %}
+  {% if _iface.value.ipv6.proxy_ndp_address is defined %}
+IPv6ProxyNDPAddress={{_iface.value.ipv6.proxy_ndp_address}}
+  {% endif %}
+  {% if _iface.value.ipv6.send_ra is defined %}
+IPv6SendRA=True
+  {% endif %}
+  {% if _iface.value.ipv6.mti_bytes is defined %}
+IPv6MTUBytes={{_iface.value.ipv6.mtu_bytes}}
+  {% endif %}
+# DHCPPrefixDelegation is not yet supported
+{% endif %}
+
+{% if _iface.value.bridge is defined %}
+Bridge={{_iface.value.bridge}}
+{% endif %}
+{% if _iface.value.bond is defined %}
+Bond={{_iface.value.bond}}
+{% endif %}
+#VRF=
+#TODO: look up vlans by name
+{% if _iface.value.vlans is defined %}
+  {% for vlan in _iface.value.vlans %}
+VLAN=vl.{{vlan}}
+  {% endfor %}
+{% endif %}
+{% if _iface.value.macvlans is defined %}
+  {% for macvlan in _iface.value.macvlans %}
+MACVLAN={{macvlan}}
+  {% endfor %}
+{% endif %}
+{% if _iface.value.vxlans is defined %}
+  {% for vxlan in _iface.value.vxlans %}
+VXLAN={{vxlan}}
+  {% endfor %}
+{% endif %}
+{% if _iface.value.tunnels is defined %}
+  {% for tunnel in _iface.value.tunnels %}
+Tunnel={{tunnel}}
+  {% endfor %}
+{% endif %}
+
+{% if _iface.value.routes is defined %}
+  {% for route in _iface.value.routes %}
+[Route]
+      {% if _iface.value.routes[route].gateway is defined %}
+Gateway={{ _iface.value.routes[route].gateway }}
+      {% endif %}
+      {% if _iface.value.routes[route].destination is defined %}
+Destination={{ _iface.value.routes[route].destination }}
+      {% endif %}
+      {% if _iface.value.routes[route].source is defined %}
+Source={{ _iface.value.routes[route].source }}
+      {% endif %}
+      {% if _iface.value.routes[route].metric is defined %}
+Metric={{ _iface.value.routes[route].metric }}
+      {% endif %}
+Scope={{ _iface.value.routes[route].scope | default('global') }}
+      {% if _iface.value.routes[route].preferredsource is defined %}
+PreferredSource={{ _iface.value.routes[route].preferredsource }}
+      {% endif %}
+      {% if _iface.value.routes[route].table is defined %}
+Table={{ _iface.value.routes[route].table }}
+      {% endif %}
+  {% endfor %}
+{% endif %}
+
+{# PolicyRules are available from systemd 235 onwards #}
+{% if _iface.value.policyrules is defined %}
+  {% for rule in _iface.value.policyrules %}
+[RoutingPolicyRule]
+    {% if _iface.value.policyrules[rule].typeofservice is defined %}
+TypeOfService={{ _iface.value.policyrules[rule].typeofservice }}
+    {% endif %}
+    {% if _iface.value.policyrules[rule].from is defined %}
+From={{ _iface.value.policyrules[rule].from }}
+    {% endif %}
+    {% if _iface.value.policyrules[rule].to is defined %}
+To={{ _iface.value.policyrules[rule].to }}
+    {% endif %}
+    {% if _iface.value.policyrules[rule].firewallmark is defined %}
+FirewallMark={{ _iface.value.policyrules[rule].firewallmark }}
+    {% endif %}
+    {% if _iface.value.policyrules[rule].table is defined %}
+Table={{ _iface.value.policyrules[rule].table }}
+    {% endif %}
+    {% if _iface.value.policyrules[rule].priority is defined %}
+Priority={{ _iface.value.policyrules[rule].priority }}
+    {% endif %}
+    {% if _iface.value.policyrules[rule].incominginterface is defined %}
+IncomingInterface={{ _iface.value.policyrules[rule].incominginterface }}
+    {% endif %}
+    {% if _iface.value.policyrules[rule].outgoinginterface is defined %}
+OutgoingInterface={{ _iface.value.policyrules[rule].outgoinginterface }}
+    {% endif %}
+
+  {% endfor %}
+{% endif %}
+
+
+{% if _iface.value.extra_ipv4 is defined %}
+ {% for ip in _iface.value.extra_ipv4 %}
+[Address]
+Address={{ip}}
+ {% endfor %}
+{% endif %}
+
+{# FIXME #}
+{% if _iface.value.addresses is defined %}
+  {% for address in _iface.value.addresses %}
+[Address]
+Address={{address}}
+    {% if _iface.value.addresses[address].peer is defined %}
+Peer={{_iface.value.addresses[address].peer}}
+    {% endif %}
+    {% if _iface.value.addresses[address].broadcast is defined %}
+Broadcast={{_iface.value.addresses[address].broadcast}}
+    {% endif %}
+    {% if _iface.value.addresses[address].label is defined %}
+Label={{_iface.value.addresses[address].label}}
+    {% endif %}
+    {% if _iface.value.addresses[address].preferred_lifetime is defined %}
+PreferredLifetime={{_iface.value.addresses[address].preferred_lifetime}}
+    {% endif %}
+    {% if _iface.value.addresses[address].home_address is defined %}
+HomeAddress={{_iface.value.addresses[address].home_address}}
+    {% endif %}
+    {% if _iface.value.addresses[address].duplicate_address_detection is defined %}
+DuplicateAddressDetection={{_iface.value.addresses[address].duplicate_address_detection}}
+    {% endif %}
+    {% if _iface.value.addresses[address].manage_temporary_address is defined %}
+ManageTemporaryAddress={{_iface.value.addresses[address].manage_temporary_address}}
+    {% endif %}
+    {% if _iface.value.addresses[address].prefix_route is defined %}
+PrefixRoute={{_iface.value.addresses[address].prefix_route}}
+    {% endif %}
+    {% if _iface.value.addresses[address].auto_join is defined %}
+AutoJoin={{_iface.value.addresses[address].auto_join}}
+    {% endif %}
+
+    {% if _iface.value.addresses[address].gateway is defined %}
+[Route]
+Gateway={{_iface.value.addresses[address].gateway}}
+    {# TODO: add the remaining route section options as well - probably most #}
+    {#       sensible way would be by making route section an include, and   #}
+    {#       re-using it                                                     #}
+    {% endif %}
+  {% endfor %}
+{% endif %}
+
+#[IPv6AddressLabel]
+#Label=
+#Prefix=
+
+{% if _iface.value.ipv6.send_ra is defined %}
+[IPv6SendRA]
+  {% if _iface.value.ipv6.send_ra.managed is defined %}
+Managed={{_iface.value.ipv6.send_ra.managed}}
+  {% endif %}
+  {% if _iface.value.ipv6.send_ra.other_information is defined %}
+OtherInformation={{_iface.value.ipv6.send_ra.other_information}}
+  {% endif %}
+  {% if _iface.value.ipv6.send_ra.router_lifetime_sec is defined %}
+RouterLifetimeSec={{_iface.value.ipv6.send_ra.router_lifetime_sec}}
+  {% endif %}
+  {% if _iface.value.ipv6.send_ra.router_preference is defined %}
+RouterPreference={{_iface.value.ipv6.send_ra.router_preference}}
+  {% endif %}
+  {% if _iface.value.ipv6.send_ra.uplink_interface is defined %}
+UplinkInterface={{_iface.value.ipv6.send_ra.uplink_interface}}
+  {% endif %}
+  {% if _iface.value.ipv6.send_ra.emit_dns is defined %}
+EmitDNS={{_iface.value.ipv6.send_ra.emit_dns}}
+  {% endif %}
+  {% if _iface.value.ipv6.send_ra.dns is defined %}
+DNS={{_iface.value.ipv6.send_ra.dns}}
+  {% endif %}
+  {% if _iface.value.ipv6.send_ra.emit_domains is defined %}
+EmitDomains={{_iface.value.ipv6.send_ra.emit_domains}}
+  {% endif %}
+  {% if _iface.value.ipv6.send_ra.domains is defined %}
+Domains={{_iface.value.ipv6.send_ra.domains}}
+  {% endif %}
+  {% if _iface.value.ipv6.send_ra.dns_lifetime_sec is defined %}
+DNSLifetimeSec={{_iface.value.ipv6.send_ra.dns_lifetime_sec}}
+  {% endif %}
+{% endif %}
+
+{% if _iface.value.ipv6.prefixes is defined %}
+  {% for prefix in _iface.value.ipv6.prefixes %}
+[IPv6Prefix]
+Prefix={{ _iface.value.ipv6.prefixes[prefix].prefix|default(prefix) }}
+  {% if _iface.value.ipv6.prefixes[prefix].address_autoconfiguration is defined %}
+AddressAutoconfiguration={{ _iface.value.ipv6.prefixes[prefix].address_autoconfiguration }}
+  {% endif %}
+  {% if _iface.value.ipv6.prefixes[prefix].on_link is defined %}
+OnLink={{ _iface.value.ipv6.prefixes[prefix].on_link }}
+  {% endif %}
+  {% if _iface.value.ipv6.prefixes[prefix].preferred_lifetime_sec is defined %}
+PreferredLifetimeSec={{ _iface.value.ipv6.prefixes[prefix].preferred_lifetime_sec }}
+  {% endif %}
+  {% if _iface.value.ipv6.prefixes[prefix].valid_lifetime_sec is defined %}
+ValidLifetimeSec={{ _iface.value.ipv6.prefixes[prefix].valid_lifetime_sec }}
+  {% endif %}
+  {% if _iface.value.ipv6.prefixes[prefix].assign is defined %}
+Assign={{ _iface.value.ipv6.prefixes[prefix].assign }}
+  {% endif %}
+  {% if _iface.value.ipv6.prefixes[prefix].token is defined %}
+Token={{ _iface.value.ipv6.prefixes[prefix].token }}
+  {% endif %}
+  {% if _iface.value.ipv6.prefixes[prefix].route_metric is defined %}
+RouteMetric={{ _iface.value.ipv6.prefixes[prefix].route_metric }}
+  {% endif %}
+
+  {% endfor %}
+{% endif %}

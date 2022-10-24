@@ -1,0 +1,27 @@
+BOOTPROTO="static"
+DEVICE="{{_iface.key}}"
+ONBOOT=yes
+TYPE=Ethernet
+IPADDR="{{_iface.value.ipv4 | ipaddr('address')}}"
+NETMASK="{{_iface.value.netmask|default('255.255.255.0')}}"
+{% if _iface.value.gateway is defined %}
+GATEWAY="{{ _iface.value.gateway }}"
+{% endif %}
+DEFROUTE=yes
+PEERDNS=no
+PEERROUTES=yes
+IPV4_FAILURE_FATAL=no
+IPV6INIT=no
+NAME="System {{_iface.key}}"
+{% if _iface.value.dns1 is defined %}
+DNS1="{{ _iface.value.dns1 }}"
+{% endif %}
+{% if _iface.value.dns2 is defined %}
+DNS2="{{ _iface.value.dns2 }}"
+{% endif %}
+{% if _iface.value.search_domains is defined %}
+DOMAIN="{{ _iface.value.search_domains }}"
+{% endif %}
+{% if _iface.value.zone is defined %}
+ZONE={{ _iface.value.zone }}
+{% endif %}

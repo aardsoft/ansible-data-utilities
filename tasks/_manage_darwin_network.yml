@@ -1,0 +1,20 @@
+- name: configure deterministic v6 addresses for OS X
+  sysctl:
+    name: net.inet6.send.opmode
+    state: present
+    value: 0
+    reload: no
+    sysctl_set: yes
+  when: >
+    ansible_os_family == "Darwin"
+
+- name: configure wireguard interfaces
+  include: _manage_wireguard.yml
+  with_dict: "{{network_nodes[inventory_hostname].networks |default({})}}"
+  loop_control:
+    loop_var: _iface
+  when: >
+    _iface.value.manager is defined and _iface.value.manager == "wg" and
+    wireguard is defined and wireguard[_iface.key] is defined
+  tags:
+    - access_setup

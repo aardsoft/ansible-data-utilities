@@ -1,0 +1,28 @@
+#jinja2: lstrip_blocks: True
+# {{ ansible_managed }}
+# https://netplan.io/reference/
+#
+# note: an alternative to ignoring routes might be applying different
+#       route metrics in the dhcp override
+network:
+    version: 2
+    ethernets:
+        {{_iface.key}}:
+            dhcp4: {{_iface.value.dhcp|default(false)|boolconv('truefalse')}}
+            dhcp6: {{_iface.value.dhcp6|default(false)|boolconv('truefalse')}}
+            set-name: {{_iface.key}}
+  {% if _iface.value.defaultroute is defined %}
+            dhcp4-overrides:
+                use-routes: {{_iface.value.defaultroute|boolconv('truefalse')}}
+  {% endif %}
+  {% if _iface.value.hwaddr is defined %}
+            match:
+                macaddress: {{_iface.value.hwaddr}}
+  {% endif %}
+  {% if _iface.value.routes is defined %}
+            routes:
+    {% for route in _iface.value.routes %}
+                - to: {{_iface.value.routes[route].destination}}
+                  via: {{_iface.value.routes[route].gateway}}
+    {% endfor %}
+  {% endif %}

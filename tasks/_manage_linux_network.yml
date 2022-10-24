@@ -1,0 +1,185 @@
+# always make sure networkd is available - it doesn't hurt to have it around,
+# but installing it early might prevent breakage in future migrations
+- set_fact:
+    __networkd_links: []
+    __networkd_netdevs: []
+    __networkd_networks: []
+    __wpa_supplicant_ifaces: []
+    __netplan_cfg: []
+  tags:
+    - access_setup
+
+- name: check networkd availability
+  service_facts:
+  tags:
+    - access_setup
+
+- name: install networkd (opensuse, {{distribution_version}})
+  zypper:
+    name: "systemd-network"
+    state: present
+  when: >
+    ansible_os_family == "Suse" and
+    ansible_facts.services["systemd-networkd.service"] is undefined
+  tags:
+    - access_setup
+
+- include: _manage_linux_network_networkd.yml
+  when: network_manager is defined and network_manager == "networkd"
+  tags:
+    - access_setup
+
+- include: manage_linux_iface.yml
+  with_dict: "{{network_nodes[inventory_hostname].networks |default({})}}"
+  loop_control:
+    loop_var: _iface
+  tags:
+    - access_setup
+
+- debug:
+    msg:
+      - "networkd: xpecting following device files:"
+      - "{{__networkd_links}}"
+      - "{{__networkd_netdevs}}"
+      - "{{__networkd_networks}}"
+  when: >
+    network_manager is defined and network_manager == "networkd"
+
+- debug:
+    msg:
+      - "netplan: expecting following device files:"
+      - "{{__netplan_cfg}}"
+  when: >
+    network_manager is defined and network_manager == "netplan"
+
+- name: copy cloud-init template
+  template:
+    src: cloud-init.yaml.j2
+    dest: /etc/cloud/cloud.cfg.d/99-disable-network-config.cgf
+    owner: root
+    group: root
+    mode: 0644
+  when: cloud_init is defined
+  tags:
+    - access_setup
+
+- name: add empty network configuration
+  template:
+    src: interfaces.j2
+    dest: /etc/network/interfaces
+    owner: root
+    group: root
+    mode: 0644
+  tags:
+    - access_setup
+  when: >
+    ansible_os_family == "Debian" and
+    network_manager is defined and
+    network_manager == "networkd"
+
+- include: _manage_linux_network_cleanup.yml
+  tags:
+    - access_setup
+
+- name: mask global wpa supplicant
+  systemd:
+    name: wpa_supplicant.service
+    masked: yes
+    state: stopped
+    force: yes
+  when: >
+    network_manager is defined and network_manager == "networkd" and
+    __wpa_supplicant_ifaces is defined and
+    __wpa_supplicant_ifaces|count >= 1
+  tags:
+    - access_setup
+
+- name: create wpa_supplicant configuration files
+  template:
+    src: wpa_supplicant.conf.j2
+    dest: /etc/wpa_supplicant/wpa_supplicant.conf
+    owner: root
+    group: root
+    mode: 0600
+  when: >
+    network_manager is defined and network_manager == "networkd" and
+    __wpa_supplicant_ifaces is defined and
+    __wpa_supplicant_ifaces|count >= 1
+  notify:
+    - restart wpa_supplicant
+  tags:
+    - access_setup
+
+- name: disable and stop nscd
+  systemd:
+    name: nscd.service
+    masked: yes
+    state: stopped
+    force: yes
+  when: >
+    ansible_service_mgr == 'systemd' and
+    (keep_nscd is undefined or
+     keep_nscd == False)
+  ignore_errors: True
+  tags:
+    - base_config
+
+- name: enable networkd services
+  systemd: name="{{item}}" enabled=yes force=yes
+  with_items:
+    - systemd-networkd
+    - systemd-networkd-wait-online
+  when: network_manager is defined and network_manager == "networkd"
+  notify:
+    - restart networkd
+  tags:
+    - access_setup
+
+- name: disable network manager services
+  service: name="{{item}}" enabled=no state=stopped
+  with_items:
+    - NetworkManager
+    - NetworkManager-wait-online
+  when: network_manager is defined and network_manager != "networkmanager"
+  tags:
+    - access_setup
+  ignore_errors: True
+
+- name: enable network manager services
+  service: name="{{item}}" enabled=yes state=started
+  with_items:
+    - NetworkManager
+    - NetworkManager-wait-online
+  when: network_manager is defined and network_manager == "networkmanager"
+  tags:
+    - access_setup
+
+# this seems to go mostly away, so relying on distributions no longer
+# works. Only disable when explicitely required.
+- name: remove bridge filtering keys on unsupported distributions
+  sysctl:
+    name: "{{ item }}"
+    state: absent
+    reload: yes
+  with_items:
+    - net.bridge.bridge-nf-call-ip6tables
+    - net.bridge.bridge-nf-call-iptables
+    - net.bridge.bridge-nf-call-arptables
+  when: >
+    bridge_filtering is undefined or bridge_filtering == false
+  ignore_errors: True
+
+# having this enabled randomly breaks connectivity over bridges
+- name: disable filtering on bridges
+  sysctl:
+    name: "{{ item }}"
+    value: 0
+    sysctl_set: yes
+    state: present
+    reload: yes
+  with_items:
+    - net.bridge.bridge-nf-call-ip6tables
+    - net.bridge.bridge-nf-call-iptables
+    - net.bridge.bridge-nf-call-arptables
+  when: >
+    bridge_filtering is defined and bridge_filtering == true

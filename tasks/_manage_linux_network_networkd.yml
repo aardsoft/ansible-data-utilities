@@ -1,0 +1,10 @@
+- name: create networkd configuration directory
+  file:
+    path: /etc/systemd/network
+    owner: root
+    group: root
+    mode: 0755
+    state: directory
+  when: network_manager is defined and network_manager == "networkd"
+  tags:
+    - access_setup

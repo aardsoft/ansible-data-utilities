@@ -1,0 +1,10 @@
+- ansible.builtin.include_tasks: _manage_windows_network.yml
+  when: ansible_os_family == "Windows"
+
+- ansible.builtin.include_tasks: _manage_darwin_network.yml
+  when: ansible_os_family == "Darwin"
+
+- ansible.builtin.include_tasks: _manage_linux_network.yml
+  when: >
+    ansible_os_family != "Windows" and
+    ansible_os_family != "Darwin"

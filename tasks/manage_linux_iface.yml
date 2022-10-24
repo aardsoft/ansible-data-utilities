@@ -1,0 +1,133 @@
+# TODO: add support for device specific network managers outside of wireguard -
+#       this would make this useful as per-interface include as well
+# networkd links
+- name: configure network links (networkd, {{_iface.key}})
+  template:
+    src: systemd-link.j2
+    dest: "/etc/systemd/network/{{_iface.value.cfg_prefix|default(10))}}-{{_iface.key}}.link"
+    mode: 0644
+  when: >
+    network_manager is defined and network_manager == "networkd" and
+    (_iface.value.manager is undefined or _iface.value.manager == "networkd") and
+    _iface.value.link_flags is defined and
+    _iface.key != "ilo"
+  notify:
+    - restart networkd
+  tags:
+    - access_setup
+
+- name: track network links (networkd, {{_iface.key}})
+  set_fact:
+    __networkd_links: "{{__networkd_links + [_iface.value.cfg_prefix|default(10)+'-'+_iface.key+'.link']}}"
+  when: >
+    network_manager is defined and network_manager == "networkd" and
+    _iface.value.link_flags is defined and
+    (_iface.value.manager is undefined or _iface.value.manager == "networkd") and
+    _iface.key != "ilo"
+
+- name: configure virtual network devices (networkd, {{_iface.key}})
+  template:
+    src: systemd-netdev.j2
+    dest: "/etc/systemd/network/{{_iface.value.cfg_prefix|default(10)}}-{{_iface.key}}.netdev"
+    mode: 0644
+  when: >
+    network_manager is defined and network_manager == "networkd" and
+    _iface.value.type is defined and _iface.value.type != "phys" and
+    (_iface.value.manager is undefined or _iface.value.manager == "networkd") and
+    _iface.key != "ilo" and _iface.value.type != "veth"
+  notify:
+    - restart networkd
+  tags:
+    - access_setup
+
+- name: track network devices (networkd, {{_iface.key}})
+  set_fact:
+    __networkd_netdevs: "{{__networkd_netdevs +  [_iface.value.cfg_prefix|default(10)+'-'+_iface.key+'.netdev']}}"
+  when: >
+    network_manager is defined and network_manager == "networkd" and
+    _iface.value.type is defined and _iface.value.type != "phys" and
+    (_iface.value.manager is undefined or _iface.value.manager == "networkd") and
+    _iface.key != "ilo" and _iface.value.type != "veth"
+
+- name: configure static network interfaces (networkd, {{_iface.key}})
+  template:
+   src: systemd-network.j2
+   dest: "/etc/systemd/network/{{_iface.value.cfg_prefix|default(10)}}-{{_iface.key}}.network"
+   mode: 0644
+  when: >
+    network_manager is defined and network_manager == "networkd" and
+    (_iface.value.manager is undefined or _iface.value.manager == "networkd") and
+    _iface.key != "ilo"
+  notify:
+    - restart networkd
+  tags:
+    - access_setup
+
+- name: track network interfaces (networkd, {{_iface.key}})
+  set_fact:
+    __networkd_networks: "{{__networkd_networks + [_iface.value.cfg_prefix|default(10)+'-'+_iface.key+'.network']}}"
+  when: >
+    network_manager is defined and network_manager == "networkd" and
+    (_iface.value.manager is undefined or _iface.value.manager == "networkd") and
+    _iface.key != "ilo"
+
+# netplan links
+- name: track network configurations (netplan, {{_iface.key}})
+  set_fact:
+    __netplan_cfg: "{{__netplan_cfg + ['51-'+_iface.key+'.yaml']}}"
+  when: >
+    network_manager is defined and network_manager == "netplan" and
+    (_iface.value.manager is undefined or _iface.value.manager == "netplan") and
+    _iface.key != "ilo"
+  loop_control:
+    loop_var: _iface
+
+# this might need additional restrictions if netplan support gets extended
+- name: configure network configurations (netplan, {{_iface.key}})
+  template:
+    src: netplan.yaml.j2
+    dest: "/etc/netplan/51-{{_iface.key}}.yaml"
+    mode: 0644
+  when: >
+    network_manager is defined and network_manager == "netplan" and
+    (_iface.value.manager is undefined or _iface.value.manager == "netplan") and
+    _iface.key != "ilo"
+#  notify:
+#    - restart networkd
+  tags:
+    - access_setup
+
+# other links
+- name: configure wpa supplicant
+  debug:
+    msg: "wpa interface {{_iface}}"
+  when: >
+    network_manager is defined and network_manager == "networkd" and
+    (_iface.value.manager is undefined or _iface.value.manager == "networkd") and
+    _iface.key != "ilo" and
+    _iface.value.wlan_passdb_entry is defined and
+    default_passdb_available == True
+  tags:
+    - access_setup
+
+- name: collect wpa supplicant interfaces ({{_iface.key}})
+  set_fact:
+    __wpa_supplicant_ifaces: "{{__wpa_supplicant_ifaces + [_iface.key]}}"
+  when: >
+    network_manager is defined and network_manager == "networkd" and
+    (_iface.value.manager is undefined or _iface.value.manager == "networkd") and
+    _iface.key != "ilo" and
+    _iface.value.wlan_passdb_entry is defined and
+    default_passdb_available == True
+  tags:
+    - access_setup
+
+# this is not quite ideal as it'll re-check the wireguard configuration for
+# each interface
+- name: configure wireguard interfaces ({{_iface.key}})
+  include: _manage_wireguard.yml
+  when: >
+    _iface.value.manager is defined and _iface.value.manager == "wg" and
+    wireguard is defined and wireguard[_iface.key] is defined
+  tags:
+    - access_setup

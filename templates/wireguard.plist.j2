@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+    <dict>
+        <key>Label</key>
+        <string>com.wireguard.wg0</string>
+        <key>ProgramArguments</key>
+        <array>
+            <!-- Points to local version of wg-quick that
+                 fixes path issues with the script -->
+            <string>/Users/slowe/.local/bin/wg-quick</string>
+            <string>up</string>
+            <string>wg0</string>
+        </array>
+        <key>KeepAlive</key>
+            <dict>
+                <key>NetworkState</key>
+                <true/>
+            </dict>
+        <key>RunAtLoad</key>
+        <true/>
+        <key>StandardErrorPath</key>
+        <string>/opt/homebrew/var/log/wireguard.err</string>
+        <key>EnvironmentVariables</key>
+        <dict>
+            <key>PATH</key>
+            <!-- Adds in user-specific and Homebrew bin directories to start of PATH -->
+            <string>/Users/slowe/.local/bin:/opt/homebrew/bin:/usr/local/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        </dict>
+    </dict>
+</plist>
