@@ -234,6 +234,9 @@ structures provided by this. '''
                     for if_key in system['networks']:
                         network=system['networks'][if_key]
 
+                        if network.get('cfg_prefix') == None:
+                            data[k['hosts']][host]['networks'][if_key]['cfg_prefix']='10'
+
                         # eventually we should switch to local_port and remote_port
                         # to be able to identify ports on the device as well.
                         # "port" becomes a short form of "remote_port"
