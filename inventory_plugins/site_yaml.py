@@ -242,6 +242,8 @@ structures provided by this. '''
                         # "port" becomes a short form of "remote_port"
                         if network.get('port') != None:
                             data[k['hosts']][host]['networks'][if_key]['remote_port']=network['port']
+                        elif network.get('remote_port') != None:
+                            data[k['hosts']][host]['networks'][if_key]['port']=network['remote_port']
 
                         shared_port=network.get('shared-port')
                         if shared_port != None:
