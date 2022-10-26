@@ -1,0 +1,4 @@
+#!/bin/bash
+# This only works with unparsed_is_failed=True in ansible.cfg
+
+ansible --list-hosts all
