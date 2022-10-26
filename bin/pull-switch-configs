@@ -7,15 +7,20 @@ declare -A switch_passdb=()
 declare -A ssh_args=()
 
 switch_passdb_entry=switches/management
+switch_user=management
+#switch_default_domain=default.aardsoft.fi
+#global_ssh_args="-F/dev/null -o PubkeyAuthentication=no"
+global_ssh_args="-o PubkeyAuthentication=no"
+switch_config_format="config.%s"
+switch_config_dir="switch-configs"
 
 if [ -f .switches ]; then
     . .switches
 fi
-#switch_default_domain=default.aardsoft.fi
 
-#global_ssh_args="-F/dev/null -o PubkeyAuthentication=no"
-global_ssh_args="-o PubkeyAuthentication=no"
-
+# TODO: handle switch specific passdb entries
+#       without those the switch specific user is
+#       a bit pointless
 SSHPASS=`pass $switch_passdb_entry`
 if [ $? -ne 0 ]; then
     echo "password not found through pass, setup broken?"
@@ -51,33 +56,45 @@ for switch in $_switches; do
     else
         _host="$switch"
     fi
-    echo "Pulling from $switch ($_type) at $_host"
+
+    if [ ${switch_users[$switch]} ]; then
+        echo "Using non-default user for $switch"
+        _user="${switch_users[$switch]}"
+    else
+        _user=$switch_user
+    fi
+
+    # TODO: also allow this per switch
+    _config_dir="$switch_config_dir"
+    _config=`printf "$switch_config_format" "$switch"`
+
+    echo "Pulling from $switch ($_type) at $_user@$_host to $_config_dir/$_config"
 
     case "$_type" in
         "dell")
             _ssh_args="$_switch_ssh_args"
-            sshpass -e scp $_ssh_args management@$_host:startup-config switch-configs/config.$switch
+            sshpass -e scp $_ssh_args $_user@$_host:startup-config "$_config_dir"/"$_config"
             ;;
         "fs")
             _ssh_args="$_switch_ssh_args"
-            sshpass -e scp $_ssh_args management@$_host:startup-config.conf switch-configs/config.$switch
+            sshpass -e scp $_ssh_args $_user@$_host:startup-config.conf "$_config_dir"/"$_config"
             ;;
         "fs_sftp")
             _ssh_args="$_switch_ssh_args"
-            sshpass -e sftp $_ssh_args management@$_host:/startup-config switch-configs/config.$switch
+            sshpass -e sftp $_ssh_args $_user@$_host:/startup-config "$_config_dir"/"$_config"
             ;;
         "hp")
             _ssh_args="$_switch_ssh_args -c aes128-cbc"
-            sshpass -e scp $_ssh_args management@$_host:/startup.cfg switch-configs/config.$switch
+            sshpass -e scp $_ssh_args $_user@$_host:/startup.cfg "$_config_dir"/"$_config"
             ;;
         "zyxel")
             _ssh_args="$_switch_ssh_args -o KexAlgorithms=+diffie-hellman-group1-sha1"
-            sshpass -e sftp $_ssh_args management@$_host:/config switch-configs/config.$switch
+            sshpass -e sftp $_ssh_args $_user@$_host:/config "$_config_dir"/"$_config"
             ;;
         "mikrotik")
             _ssh_args="$_switch_ssh_args"
-            sshpass -e ssh $_ssh_args management@$_host export file=startup-config
-            sshpass -e scp $_ssh_args management@$_host:startup-config.rsc switch-configs/config.$switch
+            sshpass -e ssh $_ssh_args $_user@$_host export file=startup-config
+            sshpass -e scp $_ssh_args $_user@$_host:startup-config.rsc "$_config_dir"/"$_config"
             ;;
         *)
             echo "Unknown type $_type, skipping"
