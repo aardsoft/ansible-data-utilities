@@ -202,6 +202,7 @@ class InventoryModule(BaseInventoryPlugin):
 
         parser,hosts=self._parse_hosts(parsed_data, parser, False, valid_keys)
 
+
     def _sanitise_data(self, vanilla_data, k, parser):
         ''' This loops over the hosts structure to validate the data, and also
 resolves implicit keys for easier consumption by roles building on the data
@@ -225,6 +226,13 @@ structures provided by this. '''
                     if uuid in items['uuids']:
                         parser['errors'].append("%s: duplicate UUID %s" % (host, uuid))
                     items['uuids'].add(uuid)
+
+                # make sure the system has a domain set at high level, if
+                # domains are configured
+                if system.get('domain') == None and data.get('default_domain') != None:
+                    data[k['hosts']][host]['domain']=data.get('default_domain')
+                if system.get('old_domain') == None and data.get('old_default_domain') != None:
+                    data[k['hosts']][host]['old_domain']=data.get('old_default_domain')
 
                 # currently there are two loops over the networks - this first
                 # loop contains checks where system type checking doesn't
