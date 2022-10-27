@@ -10,7 +10,7 @@
     network_manager is defined and network_manager == "networkd" and
     (_iface.value.manager is undefined or _iface.value.manager == "networkd") and
     _iface.value.link_flags is defined and
-    _iface.key != "ilo"
+    _iface.value.type|default('') != "ipmi"
   notify:
     - restart networkd
   tags:
@@ -23,7 +23,7 @@
     network_manager is defined and network_manager == "networkd" and
     _iface.value.link_flags is defined and
     (_iface.value.manager is undefined or _iface.value.manager == "networkd") and
-    _iface.key != "ilo"
+    _iface.value.type|default('') != "ipmi"
 
 - name: configure virtual network devices (networkd, {{_iface.key}})
   template:
@@ -34,7 +34,7 @@
     network_manager is defined and network_manager == "networkd" and
     _iface.value.type is defined and _iface.value.type != "phys" and
     (_iface.value.manager is undefined or _iface.value.manager == "networkd") and
-    _iface.key != "ilo" and _iface.value.type != "veth"
+    _iface.value.type|default('') != "ipmi" and _iface.value.type != "veth"
   notify:
     - restart networkd
   tags:
@@ -47,7 +47,7 @@
     network_manager is defined and network_manager == "networkd" and
     _iface.value.type is defined and _iface.value.type != "phys" and
     (_iface.value.manager is undefined or _iface.value.manager == "networkd") and
-    _iface.key != "ilo" and _iface.value.type != "veth"
+    _iface.value.type|default('') != "ipmi" and _iface.value.type != "veth"
 
 - name: configure static network interfaces (networkd, {{_iface.key}})
   template:
@@ -57,7 +57,7 @@
   when: >
     network_manager is defined and network_manager == "networkd" and
     (_iface.value.manager is undefined or _iface.value.manager == "networkd") and
-    _iface.key != "ilo"
+    _iface.value.type|default('') != "ipmi"
   notify:
     - restart networkd
   tags:
@@ -69,7 +69,7 @@
   when: >
     network_manager is defined and network_manager == "networkd" and
     (_iface.value.manager is undefined or _iface.value.manager == "networkd") and
-    _iface.key != "ilo"
+    _iface.value.type|default('') != "ipmi"
 
 # netplan links
 - name: track network configurations (netplan, {{_iface.key}})
@@ -78,7 +78,7 @@
   when: >
     network_manager is defined and network_manager == "netplan" and
     (_iface.value.manager is undefined or _iface.value.manager == "netplan") and
-    _iface.key != "ilo"
+    _iface.value.type|default('') != "ipmi"
   loop_control:
     loop_var: _iface
 
@@ -91,7 +91,7 @@
   when: >
     network_manager is defined and network_manager == "netplan" and
     (_iface.value.manager is undefined or _iface.value.manager == "netplan") and
-    _iface.key != "ilo"
+    _iface.value.type|default('') != "ipmi"
 #  notify:
 #    - restart networkd
   tags:
@@ -104,7 +104,7 @@
   when: >
     network_manager is defined and network_manager == "networkd" and
     (_iface.value.manager is undefined or _iface.value.manager == "networkd") and
-    _iface.key != "ilo" and
+    _iface.value.type|default('') != "ipmi" and
     _iface.value.wlan_passdb_entry is defined and
     default_passdb_available == True
   tags:
@@ -116,7 +116,7 @@
   when: >
     network_manager is defined and network_manager == "networkd" and
     (_iface.value.manager is undefined or _iface.value.manager == "networkd") and
-    _iface.key != "ilo" and
+    _iface.value.type|default('') != "ipmi" and
     _iface.value.wlan_passdb_entry is defined and
     default_passdb_available == True
   tags:
