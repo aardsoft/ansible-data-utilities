@@ -26,6 +26,6 @@
 #MulticastDNS=no
 #LLMNR=resolve
 #Cache=yes
-DNSStubListener={{resolved.dns_stub_listener|default('no')}}
+DNSStubListener={{resolved.dns_stub_listener|default('no')|boolconv('yesno')}}
 #ReadEtcHosts=yes
 #ResolveUnicastSingleLabel=no

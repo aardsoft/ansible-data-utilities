@@ -53,7 +53,7 @@ MTUBytes={{ _iface.value.mtu }}
 #ARP=
 # default: no, set it explicitely
  {% if ansible_distribution != "CentOS" %}
-Unmanaged={{ _iface.value.unmanaged | default('no')}}
+Unmanaged={{ _iface.value.unmanaged | default('no')|boolconv('yesno')}}
  {% endif %}
 
 [Network]
@@ -83,12 +83,12 @@ DHCP=no
 {% endif %}
 
 {% if _iface.value.type is defined and _iface.value.type == "bridge" %}
-IPForward={{ _iface.value.forwarding|default("yes") }}
+IPForward={{ _iface.value.forwarding|default("yes")|boolconv('yesno') }}
 {% else %}
-IPForward={{ _iface.value.forwarding|default("no") }}
+IPForward={{ _iface.value.forwarding|default("no")|boolconv('yesno') }}
 {% endif %}
 
-IPMasquerade={{ _iface.value.masquerade|default("no") }}
+IPMasquerade={{ _iface.value.masquerade|default("no")|boolconv('yesno') }}
 
 #BindCarrier=
 {% if _iface.value.ipv6 is defined %}
@@ -111,7 +111,7 @@ IPv6ProxyNDP={{_iface.value.ipv6.proxy_ndp}}
 IPv6ProxyNDPAddress={{_iface.value.ipv6.proxy_ndp_address}}
   {% endif %}
   {% if _iface.value.ipv6.send_ra is defined %}
-IPv6SendRA=True
+IPv6SendRA=yes
   {% endif %}
   {% if _iface.value.ipv6.mti_bytes is defined %}
 IPv6MTUBytes={{_iface.value.ipv6.mtu_bytes}}
