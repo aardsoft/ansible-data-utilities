@@ -6,6 +6,8 @@
     resolv_location: "{{ site_region }}"
   when: site_region is defined and resolv_location is undefined
 
+# this is legacy code - new deployments should use resolv.conf template
+# with site support
 - name: add resolv.conf
   tags:
     - base_config
@@ -28,7 +30,9 @@
     owner: root
     group: root
     mode: 0644
-  when: nameservers is defined
+  when: >
+    resolv_location is undefined and
+    nameservers is defined
 
 - name: add hosts
   ansible.builtin.template:
