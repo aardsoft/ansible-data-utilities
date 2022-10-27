@@ -253,6 +253,9 @@ structures provided by this. '''
                         elif network.get('remote_port') != None:
                             data[k['hosts']][host]['networks'][if_key]['port']=network['remote_port']
 
+                        if network.get('type') == None and (if_key == "ilo" or if_key == "ipmi"):
+                           data[k['hosts']][host]['networks'][if_key]['type']="ipmi"
+
                         shared_port=network.get('shared-port')
                         if shared_port != None:
                             shared_port=shared_port.split(",", 1)
@@ -386,7 +389,9 @@ structures provided by this. '''
         if network.get('bond') != None:
             phy['bonds'].add(network.get('bond'))
 
-        if name == "ilo" or name == "ipmi":
+        # site parser makes sure that specially named interfaces (ilo/ipmi)
+        # without type get the ipmi type added
+        if network.get('type') == "ipmi":
             ipmi_vlan=network.get('vlan')
             if ipmi_vlan == None:
                 parser['errors'].append("%s: ilo interface %s without vlan" % (host, name))
