@@ -1,0 +1,31 @@
+# run with a user already having access to the target system:
+#
+# ansible-playbook access.yml -u <user> -b --become-method=su
+#
+# ansible-playbook access.yml --tags "access_setup" -u <user> -b
+#
+# --ask-pass and --ask-become-pass might be required as well
+#
+# If the SSH session hangs SSH might be trying to use a key for
+# authentication, even if a password was provided. To disable this
+# add --ssh-extra-args "-o PubkeyAuthentication=no"
+#
+# su support seems to be fully broken in ansible currently:
+# - "su: must be run from a terminal\n"
+# - http://grokbase.com/t/gg/ansible-project/159281vzpx/is-su-exe-become-exe-broken-in-v2
+
+- hosts: all
+  tasks:
+    - fail: msg='Limit scope using --tags "access_setup"'
+
+#- hosts: all
+#  become: True
+#  tasks:
+#    - name: dump hostvars
+#      debug: msg="{{hostvars[inventory_hostname]}}"
+#  tags:
+#    - access_setup
+
+- hosts: all
+  roles:
+    - basic-host
