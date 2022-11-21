@@ -237,10 +237,18 @@ structures provided by this. '''
                 # currently there are two loops over the networks - this first
                 # loop contains checks where system type checking doesn't
                 # matter
-                if system.get('networks') != None and system.get('type') != "dns":
+                if system.get('networks') != None:
                     dups=self.get_option('allowed_duplicate_ips')
                     for if_key in system['networks']:
                         network=system['networks'][if_key]
+
+                        # first resolve the systems host name and dns domain name,
+                        # then the interface, and last the addresses
+
+                        # checks below this are only relevant for actual systems,
+                        # not DNS entries
+                        if system.get('type') == "dns":
+                            continue
 
                         if network.get('cfg_prefix') == None:
                             data[k['hosts']][host]['networks'][if_key]['cfg_prefix']='10'
@@ -277,6 +285,13 @@ structures provided by this. '''
 
                         if network.get('addresses') != None:
                             for address in network.get('addresses'):
+                                address_struct=network['addresses'][address]
+                                if address_struct != None:
+                                    print("non-none address %s %s" % (address, address_struct))
+                                    if address_struct.get('fqdn') == None:
+                                        pass
+                                    #placeholder for address specific dns/vlan/... resolution
+
                                 if address in items['ips'] and address not in dups and network.get('duplicate_ip') != True:
                                     parser['errors'].append("%s: duplicate IP %s" % (host, address))
                                 items['ips'].add(address)
