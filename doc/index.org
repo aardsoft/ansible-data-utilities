@@ -1,0 +1,489 @@
+#+TITLE: Ansible role: data-utilities
+
+* Introduction
+
+This is a collection of filters, reusable includes and other useful components for use with [[https://www.ansible.com/][Ansible]].
+
+The latest version can be obtained from [[https://github.com/aardsoft/ansible-data-utilities][github]].
+
+The recommended way of using this collection is to include it as a git submodule into your Ansible configuration(s), and adjust plugin search paths in =ansible.cfg=.
+
+Example playbooks to demonstrate how to use the extensions provided here are included in the =playbooks= directory. To run all of them you can execute =ansible-playbook playbooks/all.yml=
+
+The general assumption for our deployments is that we do not have valid directory sources to pull information from when setting up a new infrastructure, and that directory sources may be part of our infrastructure. To some extend this can be done with just a plain hosts inventory and shared group variables - as was originally done in our deployments due to shortcomings of Ansible at the time. A better approach nowadays is a custom inventory plugin - this allows easier validation of configuration data as well as augmentation from partial additional directory sources.
+
+The inventory plugin still transforms configuration data into a set of variables, to be consumed by the other roles - so the majority of our components can also be used without our inventory plugin, by manually configuring the variables specified in the role documentation.
+
+Both this role and the inventory plugin also support transforming a more generic configuration syntax into platform specific data structures or actions - making it easy to mix different Linux distributions or even Windows and MacOS systems with minimal platform specific code in your playbooks. Many of the reusable includes in this role are for this purpose. Our basic-host role packages many of those into a configurable variant to bring the basic functionality of any host into the expected state - this includes management access, network configuration, basic package installation as well as hooks into custom adjustments.
+
+* Deployment strategy
+:PROPERTIES:
+:CUSTOM_ID: deployment_strategy
+:END:
+** Recommended Ansible setup
+:PROPERTIES:
+:CUSTOM_ID: setup_tree
+:END:
+
+The following example shows the recommended directory structure for the repository containing the Ansible configuration:
+
+#+BEGIN_EXAMPLE
+├── .gitignore
+├── ansible.cfg
+├── group_vars
+│   ├── all.yml
+│   ├── dotnet_workers.yml
+│   ├── linux_workers.yml
+│   ├── macos_workers.yml
+│   └── windows_workers.yml
+├── host_vars
+│   ├── mac01.yml
+│   ├── win03.yml
+│   └── ubuntu01.yml
+├── local_roles
+│   └── README
+├── playbooks
+│   ├── access.yml -> ../roles/data-utilities/playbooks/access.yml
+│   ├── files
+│   │   ├── authorized_keys.d
+│   │   │   ├── user_one
+│   │   │   └── user_two
+│   │   ├── cleanup-script.sh
+│   │   ├── config.json
+│   │   └── sample.service
+│   ├── handlers
+│   │   └── main.yml
+│   ├── site.yml
+│   ├── tasks
+│   │   ├── custom-task1.yml
+│   │   └── custom-task2.yml
+│   └── templates
+│       ├── sample-template1.j2
+│       └── sample-template2.j2
+├── roles
+│   ├── backup
+│   │   ├── files
+│   │   └── [..]
+│   ├── basic-host
+│   │   ├── files
+│   │   └── [..]
+│   ├── data-utilities
+│   │   ├── bin
+│   │   └── [..]
+│   [..]
+├── README.org
+└── site.yaml
+#+END_EXAMPLE
+
+*** .gitignore
+:PROPERTIES:
+:CUSTOM_ID: setup_gitignore
+:END:
+
+#+BEGIN_EXAMPLE
+*.pyc
+*.retry
+/playbooks/host-keys
+ansible.log
+#+END_EXAMPLE
+
+*** ansible.cfg
+:PROPERTIES:
+:CUSTOM_ID: setup_ansible_cfg
+:END:
+
+This is a suggested minimal =ansible.cfg=, though you might want to start from an ansible example for the included comments:
+
+#+BEGIN_EXAMPLE
+[defaults]
+inventory      = site.yaml
+gather_timeout = 30
+roles_path    = local_roles:external_roles:roles
+inventory_plugins     = roles/data-utilities/inventory_plugins
+filter_plugins     = roles/ansible-data-utilities/filter_plugins
+
+[inventory]
+enable_plugins = site_yaml
+unparsed_is_failed = True
+
+[ssh_connection]
+pipelining = True
+scp_if_ssh = smart
+
+[site_yaml]
+dynamic_groups = True
+#+END_EXAMPLE
+
+The following settings for the =default= section often also make sense:
+
+#+BEGIN_EXAMPLE
+remote_tmp     = ~/.ansible/tmp
+local_tmp      = ~/.ansible/tmp
+forks          = 20
+gathering      = smart
+#+END_EXAMPLE
+
+*** group_vars, host_vars
+:PROPERTIES:
+:CUSTOM_ID: setup_ansible_vars
+:END:
+
+A list of files containing group variables, which typically at least should contain =all.yml=. See [[https://docs.ansible.com/ansible/latest/inventory_guide/intro_inventory.html][Ansible inventory introduction]] for more details.
+
+While files without file extension work using either =.yml= or =.yaml= is strongly recommended.
+
+*** external_roles
+:PROPERTIES:
+:CUSTOM_ID: setup_external_roles
+:END:
+
+A symlink to a directory of checked out roles or unpacked roles. If strict version checking is not required this is an easy approach for simple setups as well as for development. For controlled setups the =local_roles= approach described in the next section typically is better.
+
+*** local_roles
+:PROPERTIES:
+:CUSTOM_ID: setup_local_roles
+:END:
+
+A placeholder directory for temporarily storing or linking roles to for development. It can be created empty with a placeholder README similar to the following:
+
+#+BEGIN_EXAMPLE
+This directory is for holding roles during development, before importing a new
+release into the roles subfolder.
+
+This directory can either hold subdirectories of direct git clones, or symlinks
+to role directories. Typically having a clone of the upstream role somewhere,
+and just linking to it is the easier way:
+
+  ln -s /path/to/roles/sample-role .
+
+or from the ansible root:
+
+  ln -s /path/to/roles/sample-role local_roles/
+
+Don't forget to remove links/directories when importing a newly released role!
+#+END_EXAMPLE
+
+*** playbooks
+:PROPERTIES:
+:CUSTOM_ID: setup_playbooks
+:END:
+
+This directory contains the infrastructure playbooks and related files.
+
+*** roles
+:PROPERTIES:
+:CUSTOM_ID: setup_roles
+:END:
+
+This directory holds roles versioned together with the Ansible configuration. There are two approaches for managing this:
+
+- synchronising from a git source tree or a release tarball
+- adding roles as git submodules
+
+The submodule approach is recommended.
+
+*** README
+:PROPERTIES:
+:CUSTOM_ID: setup_readme
+:END:
+
+A README in the preferred markup format for the project with at least basic information on how to run Ansible and update roles is recommended.
+
+*** site.yaml
+:PROPERTIES:
+:CUSTOM_ID: setup_site_yaml
+:END:
+
+The site configuration. See the [[#inventory_plugin][inventory plugin documentation]] for details.
+
+** Configuring a host for ansible
+:PROPERTIES:
+:CUSTOM_ID: initial_deployment
+:END:
+New hosts - no matter the OS - should start out in a small configuration, ideally without much differences between deployments. To achieve that (and to reduce the manual labour) infrastructure for unattended installations should be used whenever possible.
+
+For Linux the recommended setup is netbooting with AutoYAST or Kickstart, with management keys pre-loaded for the root user. This allows easy passwordless running of the access playbook directly after installation.
+
+For Windows the recommended setup is a customised ISO with management user pre-generated, SSH pre-installed and SSH keys pre-loaded. Setting up the management user with correct permissions during the initial ansible run is slightly more complicated on Windows - so making sure this user exists during bootstrap simplifies things.
+
+This page collects information related to managing the automated installation systems, as well as scripts to quickly take over a system which could not be bootstrapped automatically.
+
+*** Generic initial setup via SSH
+:PROPERTIES:
+:CUSTOM_ID: deploy_access_setup
+:END:
+
+*** Windows SSH setup
+:PROPERTIES:
+:CUSTOM_ID: deploy_windows_ssh
+:END:
+
+The easiest way for managing Windows via Ansible is by just making sure SSH is available on the Windows server. This can be done by a custom scripted Windows installation, or by following this section.
+
+The [[./deploy-ssh.ps1][deploy-ssh]] powershell script can be used both for installing SSH during an unattended Windows installation (with the SSH installer provided on the media), as well as enable it later on.
+
+It will search for the installer =OpenSSH-Win64.zip= in =c:\ci=, the current directory and in the current users Download directory, in that order. If not found it will try to download it from the [[https://github.com/PowerShell/Win32-OpenSSH/releases][Win32-OpenSSH release page]].
+
+#+BEGIN_SRC shell
+> Invoke-WebRequest -Uri https://raw.githubusercontent.com/aardsoft/ansible-data-utilities/master/doc/deploy-ssh.ps1 -OutFile deploy-ssh.ps1
+> ./deploy-ssh.ps1
+#+END_SRC
+
+On old Windows versions it may be required to force Powershell to use recent TLS mechanisms for the download - set the following if above throws SSL errors:
+
+#+BEGIN_SRC shell
+> [Net.ServicePointManager]::SecurityProtocol = "tls12, tls11, tls"
+#+END_SRC
+
+If using RDP to connect to the server the connection may get terminated while running =deploy-ssh.ps1=, though SSH access should be reachable from that point:
+
+#+BEGIN_SRC shell
+$ ssh -o PubkeyAuthentication=no Administrator@windows-system
+#+END_SRC
+
+Depending on the Windows version it may now be possible to also run an access playbook, or manual setup of SSH keys may be required.
+
+
+* Filters
+:PROPERTIES:
+:CUSTOM_ID: filters
+:END:
+
+For generic information on filters please read the [[https://docs.ansible.com/ansible/latest/playbook_guide/playbooks_filters.html][Ansible filter documentation]].
+
+** boolconv
+:PROPERTIES:
+:CUSTOM_ID: filter_boolconv
+:END:
+
+This filter takes most of the inputs possible in Ansible to look like a bool, and converts them to a controlled string representation. Recognised inputs are all data which become one of true, false, yes, no, on, off, 0 or 1 when passed through Ansible variable expansion into Python.
+
+This solves the problem of Ansible auto-converting yes/no to booleans, and eliminates the chance of having malformed values in configuration files due to forgotten quotes in the variable declaration.
+
+A short example playbook demonstrates this problem with a template containing both defaults and sanitised values:
+
+#+BEGIN_SRC yaml
+- template:
+    src: boolconv.j2
+    dest: .out/boolconv
+  vars:
+    var1: yes
+    var2: "yes"
+    var3: true
+#+END_SRC
+
+#+BEGIN_EXAMPLE
+{{var1}} {{var1|boolconv("yesno")}}
+{{var2}} {{var2|boolconv("yesno")}}
+{{var3}} {{var3|boolconv("yesno")}}
+#+END_EXAMPLE
+
+The output shows that Ansible converts =yes= to a bool, which then becomes =True= when converted back to a string.
+
+#+BEGIN_EXAMPLE
+True yes
+yes yes
+True yes
+#+END_EXAMPLE
+
+Note that this also can be a problem for configuration files accepting true/false, but expect them to be lower case. To avoid this issue as well this filter allows controlling case of the output as well. Valid arguments are:
+
+- truefalse
+- TrueFalse
+- TRUEFALSE
+- yesno
+- YesNo
+- YESNO
+- onoff
+- ONOFF
+- int
+- enableddisabled
+
+The default if no argument is specified is =truefalse=. With a wrong argument as well as inputs not recognisable as one of the values listed above the return value is undefined (typically results in an empty string in Ansible).
+
+** ipv6_explode
+:PROPERTIES:
+:CUSTOM_ID: filter_ipv6_explode
+:END:
+
+Explode an IPv6 address, i.e., transforms something like =2a0b:5c81:300:9254::1= into =2a0b:5c81:0300:9254:0000:0000:0000:0001=. This will always return the IP address, but accepts arguments with and without prefix.
+
+* Includes for other roles
+:PROPERTIES:
+:CUSTOM_ID: includes
+:END:
+
+** Generic includes
+*** add_ssl_files
+:PROPERTIES:
+:CUSTOM_ID: include_add_ssl_files
+:END:
+
+This include handles management of SSL keys and certificates. It can pull keys or certificates from a password store, or generate missing files.
+
+It takes the following variables:
+
+- ssl_size, the size of the SSL key. Defaults to 2048
+- ssl_key, the path to the key file
+- ssl_certificate, the path to the certificate file
+- ssl_key_passdb, a passdb entry containing the SSL key
+- ssl_certificate_passdb, a list of passdb entries containing SSL certificates. This allows easy inclusion of intermediaries as well.
+
+If =ssl_certificate= is set without a passdb source a self signed certificate will be generated, if it is missing on disk. This is mostly useful when using services like letsencrypt - this allows bringing up the services with temporary certificates, to be replaced as soon as a system is operable enough to request proper certificates.
+
+Example usage:
+#+BEGIN_SRC
+- include_role:
+    name: data-utilities
+    tasks_from: add_ssl_files
+  vars:
+    ssl_key: /etc/ssl/private/test.key
+    ssl_certificate: /etc/ssl/private/test.pem
+    ssl_size: 4096
+#+END_SRC
+
+When using passdb entries for key and certificates it also is possible to have keys and certificates combined in a single file, specified by =ssl_key=:
+
+#+BEGIN_SRC
+- include_role:
+    name: data-utilities
+    tasks_from: add_ssl_files
+  vars:
+    ssl_key: /etc/ssl/private/test.pem
+    ssl_key_passdb: test-key
+    ssl_certificate_passdb:
+      - test-cert
+      - intermediary
+#+END_SRC
+
+Using a single file without passdb entries will result in certificate generation being skipped, which quite likely will lead to failures.
+
+*** install_packages
+:PROPERTIES:
+:CUSTOM_ID: include_install_packages
+:END:
+
+This include handles package installation for the provided packages on the following distribution/package manager combinations:
+
+- SuSE with zypper
+- RedHat/CentOS/Fedora with yum
+- RedHat/CentOS/Fedora with dnf
+- Debian/Ubuntu with apt
+
+It takes the following variables:
+
+- packages, a list of packages to install.
+- install_retries, the number of retries if package installation fails. Defaults to =3=.
+
+Example usage:
+#+BEGIN_SRC
+- include_role:
+    name: data-utilities
+    tasks_from: install_packages
+  vars:
+    install_retries: 10
+    packages:
+      - nmap
+#+END_SRC
+
+** Includes mainly used by basic-host
+This section describes includes used by the [[https://github.com/aardsoft/ansible-role-basic-host][basic-host]] role. The documentation here is mainly useful for the variables used to adjust their behaviour - but also may be useful for sites where the complete configuration applied by =basic-host= is not desirable.
+
+*** check_versions
+:PROPERTIES:
+:CUSTOM_ID: include_check_versions
+:END:
+
+This include checks if the running Ansible version matches the version range this role has been tested with. Additionally it also exports the variable =data_utilities_version=, and sets up some default variables. This also implicitely registers filter paths with Ansible.
+
+The =basic-host= role includes this file, so unless another role needs to use a higher =data-utilities= version than =basic-host= was tested for including this file should not be necessary. When not using =basic-host=, or using multiple roles before =basic-host= this include should be included early on in the play.
+
+For checking if data utilities is available in the correct version the =data_utilities_minver= variable can be set:
+
+#+BEGIN_SRC
+- include_role:
+    name: data-utilities
+    tasks_from: check_versions
+  vars:
+    data_utilities_minver: 0.1
+  tags:
+    - base_config
+    - access_setup
+#+END_SRC
+
+*** manage_hostname
+:PROPERTIES:
+:CUSTOM_ID: include_manage_hostname
+:END:
+
+This include tries to set the system hostname. On Windows this may require a reboot - execution continues once the system is reachable again.
+
+For setting the hostname either the =hostname= variable is used, or - if missing - the hostname is generated from the inventory hostname.
+
+*** manage_nameservices
+:PROPERTIES:
+:CUSTOM_ID: include_manage_nameservices
+:END:
+
+This include configures name services for a system - this mainly, but not only, covers DNS. Windows currently is not supported.
+
+Nameservers from a list in the variable =nameservers= are used, if available. It usually makes sense to set a default in groupvars for all, and override it for other systems/groups.
+
+There also is some legacy support for copying in prefilled resolv.conf templates based on =resolv_location= and =site_region= settings - this was implemented due to legacy Ansible restriction, and should not be used in new deployments.
+
+*** manage_time
+:PROPERTIES:
+:CUSTOM_ID: include_manage_time
+:END:
+
+This include configures timezone and other time related settings. On Windows this also sets NTP servers. For Linux this is handled in a separate ntp-client role.
+
+NTP servers are read from a list in the =ntp_servers= variable. This typically should be set in the default groupvars for all, with overrides as needed.
+
+For Windows the timezone is configured in =host_timezone_win=, using [[https://docs.microsoft.com/en-us/previous-versions/windows/embedded/ms912391(v=winembedded.11)][Microsofts time zone names]]. For other system standard TZ database names in the =host_timezone= variable are used.
+
+For all systems the hardware clock is set to UTC.
+
+*** setup_passdb
+:PROPERTIES:
+:CUSTOM_ID: include_setup_passdb
+:END:
+
+This initialises the default password store. Variables controlling the setup should be set in group or host variables. the =basic-host= role includes this file - so as long as this role is used there should be no need to include this file.
+
+Available variables are:
+
+- passdb, defaulting to [[https://docs.ansible.com/ansible/latest/collections/community/general/passwordstore_lookup.html][passwordstore]]
+- passdb_password_length, default 20. This is used when creating passwords from within Ansible.
+- passdb_password_create, bool, default =True=. Configures if Ansible is allowed to create missing passwords.
+- passdb_extra_arg, default = create={{passdb_password_create}} length={{passdb_password_length}}=
+- passdb_check_value, default empty. Allows setting a record to check if passdb is working. This is useful for writing playbooks executable by both full access admins and people without access to some passwords. A sensible value typically is the entry for the default root password.
+
+The variable =default_passdb_available= will be set by this include:
+
+- =True= if no =passdb_check_value= has been configured. This can lead to errors when executed without correct passdb access permissions.
+- =True= if =passdb_check_value= is accessible.
+- =False= if =passdb_check_value= is inaccessible.
+
+Tasks/roles should use this variable to guard sections prompting for credentials, or skip execution completely.
+
+* Inventory plugin
+:PROPERTIES:
+:CUSTOM_ID: inventory_plugin
+:END:
+
+** data format description
+*** group
+While optional it is sensible to pre-define groups with host filters to avoid mistakes
+*** sites
+For infrastructure spanning multiple physical locations hosts or host groups can be allocated to sites.
+**** name
+The name of the site.
+**** description
+Description of the site.
+
+*** networks
+This will generate multiple helper variables for easier consumption in roles:
+
+- vlans
+- dhcp_networks

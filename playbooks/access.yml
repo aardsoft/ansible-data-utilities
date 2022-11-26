@@ -8,7 +8,7 @@
 #
 # If the SSH session hangs SSH might be trying to use a key for
 # authentication, even if a password was provided. To disable this
-# add --ssh-extra-args "-o PubkeyAuthentication=no"
+# add --ssh-common-args "-o PubkeyAuthentication=no"
 #
 # su support seems to be fully broken in ansible currently:
 # - "su: must be run from a terminal\n"
