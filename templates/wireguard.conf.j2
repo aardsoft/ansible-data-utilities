@@ -11,6 +11,27 @@ Address = {{_address}}
 {% if wireguard[_iface.key].interface.listen_port is defined %}
 ListenPort = {{wireguard[_iface.key].interface.listen_port}}
 {% endif %}
+{% if wireguard[_iface.key].interface.dns is defined %}
+DNS = {{wireguard[_iface.key].interface.dns}}
+{% endif %}
+{% if wireguard[_iface.key].interface.mtu is defined %}
+MTU = {{wireguard[_iface.key].interface.mtu}}
+{% endif %}
+{% if wireguard[_iface.key].interface.table is defined %}
+Table = {{wireguard[_iface.key].interface.table}}
+{% endif %}
+{% if wireguard[_iface.key].interface.pre_up is defined %}
+PreUp = {{wireguard[_iface.key].interface.pre_up}}
+{% endif %}
+{% if wireguard[_iface.key].interface.post_up is defined %}
+PostUp = {{wireguard[_iface.key].interface.post_up}}
+{% endif %}
+{% if wireguard[_iface.key].interface.pre_down is defined %}
+PreDown = {{wireguard[_iface.key].interface.pre_down}}
+{% endif %}
+{% if wireguard[_iface.key].interface.post_down is defined %}
+PostDown = {{wireguard[_iface.key].interface.post_down}}
+{% endif %}
 PrivateKey = {{_wg_private_key['content']|b64decode}}
 
 {% if wireguard[_iface.key].peers is defined %}
