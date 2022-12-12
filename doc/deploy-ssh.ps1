@@ -1,8 +1,18 @@
 $ErrorActionPreference = "Continue"
 [Net.ServicePointManager]::SecurityProtocol = "tls12, tls11, tls"
 
-$installer_url = "https://github.com/PowerShell/Win32-OpenSSH/releases/download/v8.9.1.0p1-Beta/OpenSSH-Win64.zip"
-$installer_archive = "OpenSSH-Win64.zip"
+$installer_version="v8.9.1.0p1-Beta"
+
+if (($Env:PROCESSOR_ARCHITEW6432 -eq "ARM64") -and
+    ([System.Environment]::OSVersion.Version.Build -lt 22000)){
+    $installer_name = "OpenSSH-Win32"
+} else {
+    $installer_name = "OpenSSH-Win64"
+}
+
+$installer_archive = "$installer_name.zip"
+$installer_url = "https://github.com/PowerShell/Win32-OpenSSH/releases/download/$installer_version/$installer_archive"
+
 $installer_search_path = @("c:\ci",
                            $PWD,
                            (New-Object -ComObject Shell.Application).NameSpace('shell:Downloads').Self.Path)
@@ -45,13 +55,14 @@ try{
     }
 
     New-Item "C:\Program Files\OpenSSH" -ItemType Directory -Force
-    Copy-Item "C:\Program Files\OpenSSH-Win64\*" "C:\Program Files\OpenSSH"
+    Copy-Item "C:\Program Files\$installer_name\*" "C:\Program Files\OpenSSH"
 
     if ($config_path -ne "" -and $config_path -ne $null){
         Copy-Item $config_path "C:\Program Files\OpenSSH\sshd_config_default"
     }
 } catch {
     WriteError -ErrorAction Stop -Message "Unable to extract OpenSSH: $_"
+    Exit 1
 }
 
 powershell.exe -ExecutionPolicy Bypass -File "C:\Program Files\OpenSSH\install-sshd.ps1"
