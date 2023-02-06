@@ -1,0 +1,33 @@
+#!/bin/bash
+# Quickly switch to different shell environments with separate config
+# directories.
+# __env_marker can be added to a shell prompt to show the active env,
+# for colour prompts __env_marker_c can be used.
+
+if [ -z "$1" ]; then
+    echo "Usage: chenv <environment>"
+    exit 1
+fi
+
+__env_shell="/bin/bash -l"
+
+export XDG_CONFIG_HOME=~/.config/$1
+export XDG_CACHE_HOME=~/.cache/$1
+export XDG_STATE_HOME=~/.local/$1/state
+export XDG_DATA_HOME=~/.local/$1/share
+export HISTFILE=$XDG_STATE_HOME/bash_history
+
+if [ -f "${HOME}/.config/env/$1" ]; then
+    . "${HOME}/.config/env/$1"
+else
+    echo "No configuration found in ${HOME}/.config/env/$1"
+    exit 1
+fi
+
+mkdir -p $XDG_CONFIG_HOME $XDG_CACHE_HOME $XDG_STATE_HOME $XDG_DATA_HOME
+
+export __env_shell
+export __env_marker='['$1']'
+export __env_marker_c='\[\e[35m\]['$1']\[\e[0m\]'
+
+exec $__env_shell
