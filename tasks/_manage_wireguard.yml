@@ -136,6 +136,20 @@
   tags:
     - access_setup
 
+- name: enable and start wireguard service (Darwin)
+  ansible.builtin.include_tasks: manage_service.yml
+  vars:
+    service:
+      name: com.wireguard.wg0
+      standard_error: /var/log/{{_iface.key}}.err
+      exec_start: "{{homebrew_prefix}}/bin/wg-quick up {{_iface.key}}"
+  when: >
+    ansible_os_family == "Darwin" and
+    __iface_changed is defined and __iface_changed is changed and
+    wireguard[_iface.key].interface.active|default(True) == True
+  tags:
+    - access_setup
+
 - name: enable and start wireguard service
   systemd:
     name: "wg-quick@{{_iface.key}}"

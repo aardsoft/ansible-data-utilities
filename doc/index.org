@@ -332,7 +332,7 @@ It takes the following variables:
 If =ssl_certificate= is set without a passdb source a self signed certificate will be generated, if it is missing on disk. This is mostly useful when using services like letsencrypt - this allows bringing up the services with temporary certificates, to be replaced as soon as a system is operable enough to request proper certificates.
 
 Example usage:
-#+BEGIN_SRC
+#+BEGIN_SRC yaml
 - include_role:
     name: data-utilities
     tasks_from: add_ssl_files
@@ -344,7 +344,7 @@ Example usage:
 
 When using passdb entries for key and certificates it also is possible to have keys and certificates combined in a single file, specified by =ssl_key=:
 
-#+BEGIN_SRC
+#+BEGIN_SRC yaml
 - include_role:
     name: data-utilities
     tasks_from: add_ssl_files
@@ -376,7 +376,7 @@ It takes the following variables:
 - install_retries, the number of retries if package installation fails. Defaults to =3=.
 
 Example usage:
-#+BEGIN_SRC
+#+BEGIN_SRC yaml
 - include_role:
     name: data-utilities
     tasks_from: install_packages
@@ -384,6 +384,55 @@ Example usage:
     install_retries: 10
     packages:
       - nmap
+#+END_SRC
+
+*** manage_service
+:PROPERTIES:
+:CUSTOM_ID: include_manage_service
+:END:
+
+This include abstracts commonly used service settings for [[https://www.freedesktop.org/software/systemd/man/systemd.service.html][systemd services]] and [[https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/CreatingLaunchdJobs.html][launchd services]]. The setting names are modeled after systemd services, lowercased with underscores between words.
+
+Additionally =state= can be set to one of the values supported by the [[https://docs.ansible.com/ansible/latest/collections/ansible/builtin/systemd_module.html][Ansible systemd module]]. It defaults to =restarted=, though the state change is only triggered if the service file changes on disk. Due to shortcomings of the OS X launchd every value not =abesnt= will lead to the service being started according to the service file.
+
+For OS X and Linux the following keys are supported:
+
+| name            | service name, mandatory                                                                                            |
+| exec_start      | executable and arguments. On OS X this gets split for ProgramArguments                                             |
+| user            | user name, if service should not run as root                                                                       |
+| group           | group name, if service should not run as root/wheel                                                                |
+| restart         | restart settings. For OS X, this maps to KeepAlive: If unspecified or 'always' it is true                          |
+|                 | on-failure and on-abort map to Crashed                                                                             |
+|                 | on-success maps to SuccessfulExit                                                                                  |
+| standard_error  | redirection of standard error. On OS X this should be a path to a file                                             |
+| stardard_output | redirection of standard out. On OS X this should be a path to a file                                               |
+| environment     | key/value list of environment variables. On OS X, if it does not contain PATH, runtime path + homebrew path is set |
+
+Linux additionally supports:
+
+- exec_start_pre
+- restart_sec
+- description
+- wanted_by, defaulting to =multi-user.target=
+
+#+BEGIN_SRC yaml
+  - include_role:
+      name: data-utilities
+      tasks_from: manage_service
+    vars:
+      service:
+        name: test
+        state: absent
+
+  - include_role:
+      name: data-utilities
+      tasks_from: manage_service
+    vars:
+      service:
+        name: test
+        exec_start: /path/to/binary
+        environment:
+          foo: bar
 #+END_SRC
 
 ** Includes mainly used by basic-host
@@ -400,7 +449,7 @@ The =basic-host= role includes this file, so unless another role needs to use a 
 
 For checking if data utilities is available in the correct version the =data_utilities_minver= variable can be set:
 
-#+BEGIN_SRC
+#+BEGIN_SRC yaml
 - include_role:
     name: data-utilities
     tasks_from: check_versions

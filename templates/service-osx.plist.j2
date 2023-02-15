@@ -1,0 +1,63 @@
+#jinja2: lstrip_blocks: True
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- {{ ansible_managed }} -->
+<plist version="1.0">
+    <dict>
+        <key>Label</key>
+        <string>{{service.name}}</string>
+        <key>ProgramArguments</key>
+        <array>
+          {% set _program_arguments = service.exec_start.split(' ') %}
+          {% for _argument in _program_arguments %}
+            <string>{{_argument}}</string>
+          {% endfor %}
+        </array>
+        {% if service.user is defined %}
+        <key>UserName</key>
+        <string>{{service.user}}</string>
+        {% endif %}
+        {% if service.group is defined %}
+        <key>GroupName</key>
+        <string>{{service.group}}</string>
+        {% endif %}
+        <key>KeepAlive</key>
+        {% if service.restart is undefined or service.restart == 'always' %}
+        <true/>
+        {% elif service.restart == 'on-failure' or service.restart == 'on-abort' %}
+        <dict>
+          <key>Crashed</key>
+          <true/>
+        </dict>
+        {% elif service.restart == 'on-success' %}
+        <dict>
+          <key>SuccessfulExit</key>
+          <true/>
+        </dict>
+        {% else %}
+        <false/>
+        {% endif %}
+        <key>RunAtLoad</key>
+        <true/>
+        {% if service.standard_error is defined %}
+        <key>StandardErrorPath</key>
+        <string>{{service.standard_error}}</string>
+        {% endif %}
+        {% if service.standard_output is defined %}
+        <key>StandardOutputPath</key>
+        <string>{{service.standard_output}}</string>
+        {% endif %}
+        <key>EnvironmentVariables</key>
+        <dict>
+            {# this should make sure homebrew is always in the service path #}
+            {% if service.environment is undefined or 'PATH' not in service.environment %}
+            <key>PATH</key>
+            <string>{{homebrew_prefix}}/bin:{{homebrew_prefix}}/sbin:{{ansible_env.PATH}}</string>
+            {% endif %}
+            {% for env in service.environment|default({}) %}
+            <key>{{env}}</key>
+            <string>{{service.environment[env]}}</string>
+            {% endfor %}
+        </dict>
+    </dict>
+</plist>

@@ -1,0 +1,6 @@
+# Supporting windows services is a bit more complicated than Linux/OSX
+#- ansible.builtin.include_tasks: _manage_windows_service.yml
+#  when: ansible_os_family == "Windows"
+
+- ansible.builtin.include_tasks: _manage_unix_service.yml
+  when: ansible_os_family != "Windows"
