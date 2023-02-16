@@ -1,0 +1,36 @@
+- debug:
+    msg: "Installing package list from distribution package manager"
+
+- name: install packages for {{role_name}} (Debian)
+  ansible.builtin.apt:
+    name: "{{_packages}}"
+    state: present
+    update_cache: yes
+    cache_valid_time: 3600
+  when: >
+    ansible_os_family == "Debian"
+
+- ansible.builtin.include_tasks: _install_packages_suse.yml
+  when: >
+    ansible_os_family == "Suse" and
+    ansible_version.full is version('2.10', '>=')
+
+- ansible.builtin.include_tasks: _install_packages_suse_legacy.yml
+  when: >
+    ansible_os_family == "Suse" and
+    ansible_version.full is version('2.9', '>=') and
+    ansible_version.full is version('2.10', '<')
+
+- name: Install packages for {{role_name}} (RedHat/dnf)
+  ansible.builtin.dnf:
+    name: "{{_packages}}"
+    state: present
+  retries: "{{install_retries|default(3)}}"
+  when: ansible_os_family == "RedHat" and ansible_pkg_mgr == "dnf"
+
+- name: Install packages for {{role_name}} (RedHat/yum)
+  ansible.builtin.yum:
+    name: "{{_packages}}"
+    state: present
+  retries: "{{install_retries|default(3)}}"
+  when: ansible_os_family == "RedHat" and ansible_pkg_mgr == "yum"
