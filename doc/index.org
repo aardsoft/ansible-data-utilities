@@ -414,6 +414,7 @@ Linux additionally supports:
 - restart_sec
 - description
 - wanted_by, defaulting to =multi-user.target=
+- type
 
 #+BEGIN_SRC yaml
   - include_role:
