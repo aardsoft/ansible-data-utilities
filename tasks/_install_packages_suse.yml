@@ -3,3 +3,4 @@
     name: "{{_packages}}"
     state: present
   retries: "{{install_retries|default(3)}}"
+  become: true

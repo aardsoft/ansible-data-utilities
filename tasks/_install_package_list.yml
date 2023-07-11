@@ -65,6 +65,7 @@
     name: "{{_packages}}"
     state: present
   retries: "{{install_retries|default(3)}}"
+  become: true
   when: ansible_os_family == "RedHat" and ansible_pkg_mgr == "dnf"
 
 - name: Install packages for {{role_name}} (RedHat/yum)
@@ -72,4 +73,5 @@
     name: "{{_packages}}"
     state: present
   retries: "{{install_retries|default(3)}}"
+  become: true
   when: ansible_os_family == "RedHat" and ansible_pkg_mgr == "yum"
