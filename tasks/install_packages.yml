@@ -9,6 +9,14 @@
     _packages: "{{packages}}"
   when: packages is defined and role_packages is undefined
 
+- ansible.builtin.include_tasks: _install_package_list.yml
+  when: >
+    role_bootstrap_packages is defined and
+    role_bootstrap_packages|type_debug == "list"
+  vars:
+    _packages: "{{role_bootstrap_packages}}"
+    _bootstrap: true
+
 - debug:
     msg: "Unhandled package type {{_packages|type_debug}}"
   when: >

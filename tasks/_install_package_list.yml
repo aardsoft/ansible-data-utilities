@@ -7,8 +7,47 @@
     state: present
     update_cache: yes
     cache_valid_time: 3600
+  become: true
   when: >
-    ansible_os_family == "Debian"
+    ansible_os_family == "Debian" and
+    _bootstrap is undefined
+
+- name: install bootstrap packages
+  apt:
+    deb: "{{_deb}}"
+  with_items: "{{_packages}}"
+  when: bootstrap_debs is defined
+  register: _bootstrap_deb_result
+  loop_control:
+    loop_var: _deb
+  become: true
+  when: >
+    ansible_os_family == "Debian" and
+    _bootstrap is defined and
+    _bootstrap == true
+
+- name: clean apt cache
+  command: apt-get -y clean
+  args:
+    warn: False
+  changed_when: false
+  become: true
+  when: >
+    ansible_os_family == "Debian" and
+    _bootstrap is defined and
+    _bootstrap == true
+
+- name: force repository refresh
+  command: apt-get update
+  args:
+    warn: False
+  changed_when: false
+  become: true
+  when: >
+    ansible_os_family == "Debian" and
+    _bootstrap is defined and
+    _bootstrap == true and
+    _bootstrap_deb_result is changed
 
 - ansible.builtin.include_tasks: _install_packages_suse.yml
   when: >
