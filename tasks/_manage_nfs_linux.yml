@@ -1,0 +1,31 @@
+- name: add nfs export
+  template:
+    src: linux-nfs-export.j2
+    dest: "/etc/exports.d/{{export.key}}.exports"
+    owner: root
+    mode: 0644
+  loop_control:
+    loop_var: export
+  with_dict: "{{nfs_exports}}"
+  register: _exports_added
+  when: >
+    (export.value.state is undefined or
+     (export.value.state is defined and export.value.state != "absent")) and
+    export.value.path is defined and export.value.clients is defined
+
+- name: remove nfs export
+  file:
+    path: "/etc/exports.d/{{export.key}}.exports"
+    state: absent
+  loop_control:
+    loop_var: export
+  with_dict: "{{nfs_exports}}"
+  register: _exports_removed
+  when: >
+    export.value.state is defined and export.value.state == "absent"
+
+- name: sync exports
+  shell: exportfs -ra
+  when: >
+    (_exports_removed is defined and _exports_removed is changed) or
+    (_exports_added is defined and _exports_added is changed)

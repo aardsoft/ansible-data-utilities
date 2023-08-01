@@ -1,0 +1,4 @@
+#jinja2: lstrip_blocks: True
+# {{ ansible_managed }}
+
+{{export.value.path}} {% for client in export.value.clients %} {{client}}({% set opt=export.value.clients[client] %}{% if opt != None %}{{opt|join(',')}}{%else%}rw,sync,root_squash,subtree_check{%endif%}) {% endfor %}
