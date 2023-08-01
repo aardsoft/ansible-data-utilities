@@ -1,0 +1,4 @@
+#jinja2: lstrip_blocks: True
+# {{ ansible_managed }}
+[Service]
+ExecStart=/usr/sbin/nbdkit file {{nbd_exports[nbd.1].file}}

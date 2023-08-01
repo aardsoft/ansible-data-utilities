@@ -1,0 +1,22 @@
+#jinja2: lstrip_blocks: True
+# {{ ansible_managed }}
+[Unit]
+Description=NBDKit Network Block Device server for {{nbd.1}}
+
+[Socket]
+{% if nbd_exports[nbd.1].addresses is defined %}
+  {% for address in nbd_exports[nbd.1].addresses %}
+    {% if address|ipv6 %}
+ListenStream=[{{address}}]:{{nbd_exports[nbd.1].port}}
+    {% elif address|ipv4 %}
+ListenStream={{address}}:{{nbd_exports[nbd.1].port}}
+    {% else %}
+# skipping unknown protocol on {{address}}
+    {% endif %}
+  {% endfor %}
+{% else %}
+ListenStream=127.0.0.1:{{nbd_exports[nbd.1].port}}
+{% endif %}
+
+[Install]
+WantedBy=sockets.target

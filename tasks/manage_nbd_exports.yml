@@ -1,0 +1,3 @@
+- ansible.builtin.include_tasks: _manage_systemd_nbd.yml
+  when: >
+    ansible_service_mgr == 'systemd'

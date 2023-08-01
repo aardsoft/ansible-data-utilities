@@ -1,0 +1,55 @@
+- name: add systemd nbd exports
+  template:
+    src: systemd-nbd-{{nbd.0}}.j2
+    dest: "/etc/systemd/system/nbd-{{nbd.1}}.{{nbd.0}}"
+    mode: 0644
+  loop_control:
+    loop_var: nbd
+  with_nested:
+    - ['socket', 'service']
+    - "{{nbd_exports}}"
+  when: >
+    (nbd_exports[nbd.1].state is undefined or
+     (nbd_exports[nbd.1].state is defined and nbd_exports[nbd.1].state != "absent")) and
+    nbd_exports[nbd.1].port is defined and
+    nbd_exports[nbd.1].file is defined
+
+- name: enable socket
+  systemd:
+    daemon_reload: yes
+    name: "nbd-{{nbd.key}}.socket"
+    state: started
+    enabled: yes
+  loop_control:
+    loop_var: nbd
+  with_dict: "{{nbd_exports}}"
+  when: >
+    (nbd.value.state is undefined or
+     (nbd.value.state is defined and nbd.value.state != "absent"))
+
+- name: disable socket
+  systemd:
+    daemon_reload: yes
+    name: "nbd-{{nbd.key}}.socket"
+    state: stopped
+    enabled: no
+  loop_control:
+    loop_var: nbd
+  with_dict: "{{nbd_exports}}"
+  # on re-runs exports might already have been removed and can't be disabled:
+  # ignore errors
+  ignore_errors: True
+  when: >
+    nbd.value.state is defined and nbd.value.state == "absent"
+
+- name: remove systemd nbd exports
+  file:
+    path: /etc/systemd/system/nbd-{{nbd.1}}.{{nbd.0}}
+    state: absent
+  loop_control:
+    loop_var: nbd
+  with_nested:
+    - ['socket', 'service']
+    - "{{nbd_exports}}"
+  when: >
+    nbd_exports[nbd.1].state is defined and nbd_exports[nbd.1].state == "absent"
