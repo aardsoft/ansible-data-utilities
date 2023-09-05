@@ -1,0 +1,47 @@
+# this is a bit dirty, but seems ansible still isn't providing proper
+# environment variables about become users
+- name: locate user home
+  shell: "getent passwd `id -u`  | awk -F: '{ print $6 }'"
+  register: shell
+
+- set_fact:
+    gpg_user_home: "{{shell.stdout}}"
+    gpg_dir: "{{shell.stdout}}/.gnupg"
+    gpg_log_dir: "{{shell.stdout}}/.gnupg/log"
+
+- name: create gpg directory in {{gpg_dir}}
+  file:
+    state: directory
+    mode: 0700
+    path: "{{gpg_dir}}"
+
+- name: create gpg log directory in {{gpg_dir}}
+  file:
+    state: directory
+    mode: 0700
+    path: "{{gpg_log_dir}}"
+
+- name: copy gpg.conf
+  template:
+    src: gpg.conf.j2
+    dest: "{{gpg_dir}}/gpg.conf"
+    mode: 0644
+
+- name: copy gpg-agent.conf
+  template:
+    src: gpg-agent.conf.j2
+    dest: "{{gpg_dir}}/gpg-agent.conf"
+    mode: 0644
+
+- name: copy dirmngr.conf
+  template:
+    src: gpg-dirmngr.conf.j2
+    dest: "{{gpg_dir}}/dirmngr.conf"
+    mode: 0644
+
+- name: copy gnupg-pkcs11-scd.conf
+  template:
+    src: gnupg-pkcs11-scd.conf.j2
+    dest: "{{gpg_dir}}/gnupg-pkcs11-scd.conf"
+    mode: 0644
+  when: gpg.value["gnupg-pkcs11-scd"] is defined

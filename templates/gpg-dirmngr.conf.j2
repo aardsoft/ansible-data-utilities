@@ -1,0 +1,14 @@
+#jinja2: lstrip_blocks: True
+# {{ ansible_managed }}
+{% if gpg.value["dirmngr.conf"] is defined %}
+{% for _conf in gpg.value["dirmngr.conf"] %}
+{{_conf}}
+{% endfor %}
+{% else %}
+keyserver hkps://keys.openpgp.org
+{% endif %}
+{% if gpg.value["dirmngr.conf.extra"] is defined %}
+{% for _conf in gpg.value["dirmngr.conf.extra"] %}
+{{_conf}}
+{% endfor %}
+{% endif %}

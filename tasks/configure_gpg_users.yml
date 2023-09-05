@@ -1,0 +1,8 @@
+- ansible.builtin.include_tasks: configure_gpg.yml
+  with_dict: "{{gpg_users}}"
+  loop_control:
+    loop_var: gpg
+  args:
+    apply:
+      become: true
+      become_user: "{{gpg.key}}"

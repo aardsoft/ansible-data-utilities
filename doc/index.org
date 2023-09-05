@@ -358,6 +358,85 @@ When using passdb entries for key and certificates it also is possible to have k
 
 Using a single file without passdb entries will result in certificate generation being skipped, which quite likely will lead to failures.
 
+*** configure_gpg_users
+:PROPERTIES:
+:CUSTOM_ID: configure_gpg_users
+:END:
+
+This include configures gpg for one or more users, with optional [[https://github.com/alonbl/gnupg-pkcs11-scd][pkcs11-scd]] support, expecting configuration in a variable named =gpg_users=. The [[https://github.com/aardsoft/ansible-role-basic-host][basic-host]] role will automatically set this up if the variable is defined.
+
+Sample configuration for user accounts =user1= and =user2=:
+
+#+BEGIN_SRC yaml
+  gpg_users:
+    user1:
+      gnupg-pkcs11-scd:
+      gpg-agent.conf.extra:
+        - allow-emacs-pinentry
+        - debug-level advanced
+    user2:
+      gpg-agent:
+        debug: advanced
+        verbose:
+      gpg.conf:
+        - no-secmem-warning
+#+END_SRC
+
+**** dirmngr.conf
+A lost of options to use in =dirmngr.conf=. If omitted the following default configuration will be used:
+
+#+BEGIN_EXAMPLE
+keyserver hkps://keys.openpgp.org
+#+END_EXAMPLE
+
+**** dirmngr.conf.extra
+A list of extra options to add to =dirmngr.conf=
+
+**** gpg.conf
+A list of options to use in =gpg.conf=. If omitted the following default configuration will be used:
+
+#+BEGIN_EXAMPLE
+keyserver-options auto-key-retrieve
+use-agent
+no-secmem-warning
+#+END_EXAMPLE
+
+**** gpg.conf.extra
+A list of extra options to add to =gpg.conf=
+
+**** gpg-agent
+A list of flags changing the default configuration.
+
+- =debug= takes the values of =debug-level= described for gpg-agent. If gnupg-pkcs11-scd is used anything other than =none= here will enable debug logging there as well.
+- =verbose= will enable verbose for gpg-agent and gnupkc-pkcs11-scd unless set to =false=.
+
+**** gpg-agent.conf
+A list of options to use in =gpg-agent.conf=. If omitted the following default configuration will be used:
+
+#+BEGIN_EXAMPLE
+log-file $HOME/.gnupg/log/gpg-agent.log
+enable-ssh-support
+max-cache-ttl 172800
+default-cache-ttl 86400
+default-cache-ttl-ssh 10800
+write-env-file $HOME/.gpg-agent-info
+#+END_EXAMPLE
+
+**** gpg-agent.conf.extra
+A list of extra options to add to =gpg-agent.conf=
+
+**** gnupg-pkcs11-scd
+If present will add =scdaemon-program= pointing to gnupg-pkcs11-scd to gpg-agent configuration, and copy gnupg-pkcs11-scd configuration.
+
+This setting can have the subkeys =library= (default: /usr/lib64/p11-kit-proxy.so) and =program= (default: /usr/bin/gnupg-pkcs11-scd).
+
+*** configure_gpg
+:PROPERTIES:
+:CUSTOM_ID: configure_gpg
+:END:
+
+This include configures gpg for a single user, and expects to be run as that user. The [[#configure_gpg_users][include for multiple users]] just uses this include in a loop. The data structure expected as =gpg= is therefore a single user entry of the structure described there.
+
 *** install_packages
 :PROPERTIES:
 :CUSTOM_ID: include_install_packages

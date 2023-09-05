@@ -1,0 +1,16 @@
+#jinja2: lstrip_blocks: True
+# {{ ansible_managed }}
+{% if gpg.value["gpg.conf"] is defined %}
+{% for _conf in gpg.value["gpg.conf"] %}
+{{_conf}}
+{% endfor %}
+{% else %}
+keyserver-options auto-key-retrieve
+use-agent
+no-secmem-warning
+{% endif %}
+{% if gpg.value["gpg.conf.extra"] is defined %}
+{% for _conf in gpg.value["gpg.conf.extra"] %}
+{{_conf}}
+{% endfor %}
+{% endif %}

@@ -1,0 +1,28 @@
+#jinja2: lstrip_blocks: True
+# {{ ansible_managed }}
+{% if gpg.value["gpg-agent.conf"] is defined %}
+{% for _conf in gpg.value["gpg-agent.conf"] %}
+{{_conf}}
+{% endfor %}
+{% else %}
+{% if gpg.value["gnupg-pkcs11-scd"] is defined %}
+scdaemon-program {{gpg.value["gnupg-pkcs11-scd"].program|default('/usr/bin/gnupg-pkcs11-scd')}}
+{% endif %}
+{% if gpg.value["gpg-agent"].debug is defined  %}
+debug-level {{gpg.value["gpg-agent"].debug}}
+{% endif %}
+{% if gpg.value["gpg-agent"].verbose is defined and gpg.value["gpg-agent"].verbose != false %}
+verbose
+{% endif %}
+log-file {{gpg_log_dir}}/gpg-agent.log
+enable-ssh-support
+max-cache-ttl 172800
+default-cache-ttl 86400
+default-cache-ttl-ssh 10800
+write-env-file {{gpg_user_home}}/.gpg-agent-info
+{% endif %}
+{% if gpg.value["gpg-agent.conf.extra"] is defined %}
+{% for _conf in gpg.value["gpg-agent.conf.extra"] %}
+{{_conf}}
+{% endfor %}
+{% endif %}
