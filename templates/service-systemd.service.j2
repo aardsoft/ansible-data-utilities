@@ -12,6 +12,9 @@ Type={{service.type}}
 ExecStartPre={{service.exec_start_pre}}
 {% endif %}
 ExecStart={{service.exec_start}}
+{% if service.exec_start_post is defined %}
+ExecStartPost={{service.exec_start_post}}
+{% endif %}
 Restart={{service.restart|default('always')}}
 RestartSec={{service.restart_sec|default(2)}}
 {% if service.user is defined %}
