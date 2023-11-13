@@ -1,0 +1,53 @@
+- name: install homebrew packages for homebrew user {{homebrew_user|default('')}}
+  community.general.homebrew:
+    name: "{{homebrew_packages}}"
+    state: present
+  become: true
+  become_user: "{{homebrew_user}}"
+  environment:
+    PATH: "{{homebrew_prefix}}/bin:{{ansible_env.PATH}}"
+  when: >
+    (install_homebrew is undefined or
+     install_homebrew != false) and
+    homebrew_packages is defined and
+    homebrew_user is defined
+
+- name: install homebrew casks for homebrew user {{homebrew_user|default('')}}
+  community.general.homebrew_cask:
+    name: "{{homebrew_cask_packages}}"
+    state: present
+  become: true
+  become_user: "{{homebrew_user}}"
+  environment:
+    PATH: "{{homebrew_prefix}}/bin:{{ansible_env.PATH}}"
+  when: >
+    (install_homebrew is undefined or
+     install_homebrew != false) and
+    homebrew_cask_packages is defined and
+    homebrew_user is defined
+
+- name: install homebrew packages for management
+  community.general.homebrew:
+    name: "{{homebrew_packages}}"
+    state: present
+  become: false
+  environment:
+    PATH: "{{homebrew_prefix}}/bin:{{ansible_env.PATH}}"
+  when: >
+    (install_homebrew is undefined or
+     install_homebrew != false) and
+    homebrew_packages is defined and
+    homebrew_user is undefined
+
+- name: install homebrew casks for management
+  community.general.homebrew_cask:
+    name: "{{homebrew_cask_packages}}"
+    state: present
+  become: false
+  environment:
+    PATH: "{{homebrew_prefix}}/bin:{{ansible_env.PATH}}"
+  when: >
+    (install_homebrew is undefined or
+     install_homebrew != false) and
+    homebrew_cask_packages is defined and
+    homebrew_user is undefined

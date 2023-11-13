@@ -1,0 +1,58 @@
+- name: install homebrew packages for homebrew user {{homebrew_user|default('')}}
+  homebrew:
+    name: "{{homebrew_packages}}"
+    state: present
+  become: true
+  become_user: "{{homebrew_user}}"
+  environment:
+    PATH: "{{homebrew_prefix}}/bin:{{ansible_env.PATH}}"
+  when: >
+    (install_homebrew is undefined or
+     install_homebrew != false) and
+    homebrew_packages is defined and
+    homebrew_user is defined
+
+# homebrew_cask is broken in older ansible
+# without a correct sudoers for homebrew_user this step may fail
+- name: install homebrew casks for homebrew user {{homebrew_user|default('')}}
+  shell: "brew install --cask {{_package}}"
+  environment:
+    PATH: "{{homebrew_prefix}}/bin:{{ansible_env.PATH}}"
+  loop_control:
+    loop_var: _package
+  with_items: "{{homebrew_cask_packages}}"
+  become: true
+  become_user: "{{homebrew_user}}"
+  when: >
+    (install_homebrew is undefined or
+     install_homebrew != false) and
+    homebrew_cask_packages is defined and
+    homebrew_user is defined
+
+- name: install homebrew packages for management
+  homebrew:
+    name: "{{homebrew_packages}}"
+    state: present
+  become: false
+  environment:
+    PATH: "{{homebrew_prefix}}/bin:{{ansible_env.PATH}}"
+  when: >
+    (install_homebrew is undefined or
+     install_homebrew != false) and
+    homebrew_packages is defined and
+    homebrew_user is undefined
+
+# homebrew_cask is broken in older ansible
+- name: install homebrew casks for management
+  shell: "brew install --cask {{_package}}"
+  environment:
+    PATH: "{{homebrew_prefix}}/bin:{{ansible_env.PATH}}"
+  loop_control:
+    loop_var: _package
+  with_items: "{{homebrew_cask_packages}}"
+  become: false
+  when: >
+    (install_homebrew is undefined or
+     install_homebrew != false) and
+    homebrew_cask_packages is defined and
+    homebrew_user is undefined
