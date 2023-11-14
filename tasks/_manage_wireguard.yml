@@ -26,7 +26,7 @@
   ansible.builtin.file:
     path: "/usr/local/etc"
     owner: root
-    group: admin
+    group: "{{_root_group}}"
     mode: 0775
     state: directory
   when: >
@@ -81,7 +81,7 @@
     src: wireguard_key.j2
     dest: "{{wireguard[_iface.key].interface.private_key_file}}"
     owner: root
-    group: root
+    group: "{{_root_group}}"
     mode: 0600
   register: _wg_key_copy
   when: >
@@ -140,7 +140,7 @@
   ansible.builtin.include_tasks: manage_service.yml
   vars:
     service:
-      name: com.wireguard.wg0
+      name: com.wireguard.{{_iface.key}}
       standard_error: /var/log/{{_iface.key}}.err
       exec_start: "{{homebrew_prefix}}/bin/wg-quick up {{_iface.key}}"
   when: >
