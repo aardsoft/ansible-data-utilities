@@ -243,6 +243,67 @@ $ ssh -o PubkeyAuthentication=no Administrator@windows-system
 
 Depending on the Windows version it may now be possible to also run an access playbook, or manual setup of SSH keys may be required.
 
+*** Windows custom image
+:PROPERTIES:
+:CUSTOM_ID: deploy_windows_image
+:END:
+
+Creating a custom image allows adding or removing components to the regular Windows installation, and pre-load scripts required for taking over a host by Ansible.
+
+The [[./windows-image.ps1][windows-image]] powershell script can be used to mostly automate image creation. While it will ask for any missing parameters it is recommended to create an answer file. The following example contains all possible variables:
+
+#+BEGIN_EXAMPLE
+$iso_path="c:\Users\example\Documents\Windows.iso"
+$image_path="c:\unattended_image"
+$ci_source_path="c:\ci"
+$ci_target_dir="\ci"
+$autounattend_path="c:\Autounattend.xml"
+$os_index=6
+$wait_for_manual=$true
+$remove_apps=@(
+  "Microsoft.BingWeather"
+  "Microsoft.Getstarted"
+)
+#+END_EXAMPLE
+
+It should be saved as powershell script (with ending =.ps1=), and can be passed to the =windows-image= script either as first argument, or through the environment variable =CI_ISO_PARAMETERS=.
+
+=autounattend_path= is the path to a that can be used as =Autounattend.xml= for an unattended installation. If this variable is not set, but the CI script directory described below contains =Autounattend.xml= this will be used without a need for configuration.
+
+=os_index= is the index of the Windows variant to be used for multi variant source images - if unspecified the script will list all available variants before prompting. The specified index will be converted to a single variant install.wim. This setting is only relevant on Windows media containing an install.esd file - for newer media shipping a multi variant install.wim the file will be used directly, and variant selection happens at installation time.
+
+=remove_apps= is a list of preinstalled Windows applications that should be removed from the image. The list of applications in =mount_path= can be obtained with  =Get-AppxProvisionedPackage -path mount-path|Format-Table=.
+
+=wait_for_manual= makes the script pause before unmounting boot and install images, allowing manual injection of components.
+
+=ci_source_path= is the path to a directory containing the files to be injected into the image. A detailed suggestion on how to use this directory is in the section below.
+
+=ci_target_dir= is the path to a directory relative to the mountpoint of the install media to place the files. =\ci= would place them at the root of the install drive after installation (typically =c:\ci=)
+
+The script expects a Windows ISO file, which can be created by
+
+- [[https://www.microsoft.com/software-download/windows11][downloading a Wndows 11 ISO]]
+- using the [[https://go.microsoft.com/fwlink/?linkid=2156295][Windows 11 media creation tool]]
+- downloading Windows 11 images through the Windows insider program
+- download Windows images through [[https://uupdump.net][uupdump]]
+
+At the time of writing Arm64 images can only be obtained via the insider program or uupdump. The same four options exists for Windows 10, links should be trivially obtainable by searching the microsoft site.
+
+**** CI scripts
+:PROPERTIES:
+:CUSTOM_ID: ci_scripts
+:END:
+
+
+*** Windows unattended image
+:PROPERTIES:
+:CUSTOM_ID: deploy_windows_unattended_image
+:END:
+
+Creating an unattended Windows image requires following the stops for creating a custom Windows image in the section above first.
+
+Next the [[https://learn.microsoft.com/en-us/windows-hardware/get-started/adk-install][Windows ADK]] needs to be installed for creating an answer file. Note that creating Windows 10 or 32-bit images may require using legacy ADK versions. Selecting =Deployment Tools= in the features list should be sufficient.
+
 
 * Filters
 :PROPERTIES:
