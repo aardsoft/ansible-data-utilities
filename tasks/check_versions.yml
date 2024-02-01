@@ -7,6 +7,25 @@
     - base_config
     - access_setup
 
+- name: verify site ansible version
+  ansible.builtin.assert:
+    that: "ansible_version.full is version_compare('{{site_ansible_version}}', '=')"
+    msg: >
+      This site expects ansible version {{site_ansible_version}}, while you are using
+      {{ansible_version.full}}.
+
+      Install the correct version with pip3 install ansible=={{site_ansible_version}}
+
+      When using default locations aliases can be set as follows, adjusting X and Y
+      for the correct versions:
+
+        alias ansibleXY=~/.local/bin/ansible
+        alias ansibleXY-playbook=~/.local/bin/ansible-playbook
+  when: site_ansible_version is defined
+  tags:
+    - base_config
+    - access_setup
+
 - ansible.builtin.set_fact:
     data_utilities_version: 0.4
   tags:
