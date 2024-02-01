@@ -1,4 +1,39 @@
 - set_fact:
+    __launchd_wrapper_installed: false
+  when: >
+    ansible_os_family == "Darwin" and
+    __launchd_wrapper_installed is undefined
+
+- name: create launchd directories
+  ansible.builtin.file:
+    path: "{{_path}}"
+    state: directory
+  with_items:
+    - /usr/local/bin
+    - /usr/local/etc/launchd-fork-wrapper
+  loop_control:
+    loop_var: _path
+  when: >
+    ansible_os_family == "Darwin" and
+    __launchd_wrapper_installed == false
+
+- name: install launchd wrapper
+  ansible.builtin.template:
+    src: "launchd-fork-wrapper.zsh"
+    dest: "/usr/local/bin/launchd-fork-wrapper"
+    owner: root
+    mode: 0755
+  when: >
+    ansible_os_family == "Darwin" and
+    __launchd_wrapper_installed == false
+
+- set_fact:
+    __launchd_wrapper_installed: true
+  when: >
+    ansible_os_family == "Darwin" and
+    __launchd_wrapper_installed == false
+
+- set_fact:
     __service_file: "{{service.directory|default('/Library/LaunchDaemons')}}/{{service.name}}.plist"
     __service_template: "service-osx.plist.j2"
   when: >
