@@ -48,6 +48,20 @@
 - set_fact:
     __service_state: "{{service.state|default('restarted')}}"
 
+- name: create launchd wrapper config
+  template:
+    src: "fork-wrapper.conf.j2"
+    dest: "/usr/local/etc/launchd-fork-wrapper/{{service.name}}"
+    owner: root
+    mode: 0644
+  register: __service_wrapper_status
+  when: >
+    __service_state != 'absent' and
+    ansible_os_family == "Darwin" and
+    service.type is defined and (
+    service.type == "oneshot" or
+    service.type == "forking")
+
 - name: create service file
   template:
     src: "{{__service_template}}"

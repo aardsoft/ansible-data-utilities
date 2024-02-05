@@ -88,4 +88,8 @@ fi
 
 # wait until something happens
 # for a forking service we also should monitor the pid
-read
+while true; do
+    # this is in a loop as read in service manager might directly return
+    read
+    sleep 1
+done

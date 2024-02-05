@@ -3,6 +3,7 @@
 
 - set_fact:
     _wg: wg
+    _wg_name: "{{_iface.key}}"
 
 - set_fact:
     _wireguard_confdir: "{{homebrew_prefix}}/etc/wireguard"
@@ -14,53 +15,10 @@
   when: >
     ansible_os_family == "Darwin"
 
-- name: make sure wireguard configuration directory exists
-  ansible.builtin.file:
-    path: "{{_wireguard_confdir}}"
-    owner: root
-    group: "{{_root_group}}"
-    mode: 0700
-    state: directory
-
-- name: link wireguard configuration on arm macs
-  ansible.builtin.file:
-    path: "/usr/local/etc"
-    owner: root
-    group: "{{_root_group}}"
-    mode: 0775
-    state: directory
+- ansible.builtin.include_tasks: _manage_wireguard_install.yml
   when: >
-    ansible_os_family == "Darwin" and
-    ansible_machine == 'arm64'
-
-- name: link wireguard configuration on arm macs
-  ansible.builtin.file:
-    src: "{{_wireguard_confdir}}"
-    dest: "/usr/local/etc/wireguard"
-    state: link
-    force: True
-  when: >
-    ansible_os_family == "Darwin" and
-    ansible_machine == 'arm64'
-
-- ansible.builtin.include_tasks: _homebrew_packages.yml
-  when: >
-    ansible_os_family == "Darwin" and
-    ansible_version.full is version('2.10', '>=')
-  vars:
-    homebrew_packages:
-      - wireguard-go
-      - wireguard-tools
-
-- ansible.builtin.include_tasks: _homebrew_packages_legacy.yml
-  when: >
-    ansible_os_family == "Darwin" and
-    ansible_version.full is version('2.9', '>=') and
-    ansible_version.full is version('2.10', '<')
-  vars:
-    homebrew_packages:
-      - wireguard-go
-      - wireguard-tools
+    _wg_installed is undefined or
+    _wg_installed == False
 
 - stat:
     path: "{{wireguard[_iface.key].interface.private_key_file}}"
@@ -76,7 +34,7 @@
   tags:
     - access_setup
 
-- name: copy wireguard private key from passdb
+- name: "{{_wg_name}}: copy wireguard private key from passdb"
   ansible.builtin.template:
     src: wireguard_key.j2
     dest: "{{wireguard[_iface.key].interface.private_key_file}}"
@@ -88,7 +46,7 @@
     wireguard[_iface.key].interface.private_key_file is defined and
     wireguard[_iface.key].interface.passdb_entry is defined
 
-- name: create wireguard private key
+- name: "{{_wg_name}}: create wireguard private key"
   shell: "{{_wg}} genkey > {{wireguard[_iface.key].interface.private_key_file}}"
   when: >
     wireguard[_iface.key].interface.private_key_file is defined and
@@ -97,7 +55,7 @@
   tags:
     - access_setup
 
-- name: adjust wireguard private key permissions
+- name: "{{_wg_name}}: adjust wireguard private key permissions"
   file:
     path: "{{wireguard[_iface.key].interface.private_key_file}}"
     owner: root
@@ -108,7 +66,7 @@
     - access_setup
 
 # TODO: this should also get recreated if the private key changes in one of the two steps above
-- name: create wireguard public key
+- name: "{{_wg_name}}: create wireguard public key"
   shell: "{{_wg}} pubkey < {{wireguard[_iface.key].interface.private_key_file}} > {{wireguard[_iface.key].interface.public_key_file}}"
   when: >
     wireguard[_iface.key].interface.private_key_file is defined and
@@ -119,7 +77,7 @@
   tags:
     - access_setup
 
-- name: read private key file
+- name: "{{_wg_name}}: read private key file"
   slurp:
     src: "{{wireguard[_iface.key].interface.private_key_file}}"
   when: wireguard[_iface.key].interface.private_key_file is defined
@@ -127,7 +85,7 @@
   tags:
     - access_setup
 
-- name: configure wireguard interfaces
+- name: "{{_wg_name}}: configure wireguard interfaces"
   template:
    src: wireguard.conf.j2
    dest: "{{_wireguard_confdir}}/{{_iface.key}}.conf"
@@ -136,13 +94,18 @@
   tags:
     - access_setup
 
-- name: enable and start wireguard service (Darwin)
+# TODO: we should just restart the service on change, but always call the
+#       service setup. Currently that's skipped as the service setup on
+#       Darwin is still a bit WIP, and doesn't handle service changes too
+#       gracefully
+- name: "{{_wg_name}}: enable and start wireguard service (Darwin)"
   ansible.builtin.include_tasks: manage_service.yml
   vars:
     service:
       name: com.wireguard.{{_iface.key}}
       standard_error: /var/log/{{_iface.key}}.err
       exec_start: "{{homebrew_prefix}}/bin/wg-quick up {{_iface.key}}"
+      type: oneshot
   when: >
     ansible_os_family == "Darwin" and
     __iface_changed is defined and __iface_changed is changed and
@@ -150,7 +113,7 @@
   tags:
     - access_setup
 
-- name: enable and start wireguard service
+- name: "{{_wg_name}}: enable and start wireguard service"
   systemd:
     name: "wg-quick@{{_iface.key}}"
     state: restarted

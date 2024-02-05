@@ -1,0 +1,50 @@
+- set_fact:
+    _wg_installed: true
+
+- name: make sure wireguard configuration directory exists
+  ansible.builtin.file:
+    path: "{{_wireguard_confdir}}"
+    owner: root
+    group: "{{_root_group}}"
+    mode: 0700
+    state: directory
+
+- name: link wireguard configuration on arm macs
+  ansible.builtin.file:
+    path: "/usr/local/etc"
+    owner: root
+    group: "{{_root_group}}"
+    mode: 0775
+    state: directory
+  when: >
+    ansible_os_family == "Darwin" and
+    ansible_machine == 'arm64'
+
+- name: link wireguard configuration on arm macs
+  ansible.builtin.file:
+    src: "{{_wireguard_confdir}}"
+    dest: "/usr/local/etc/wireguard"
+    state: link
+    force: True
+  when: >
+    ansible_os_family == "Darwin" and
+    ansible_machine == 'arm64'
+
+- ansible.builtin.include_tasks: _homebrew_packages.yml
+  when: >
+    ansible_os_family == "Darwin" and
+    ansible_version.full is version('2.10', '>=')
+  vars:
+    homebrew_packages:
+      - wireguard-go
+      - wireguard-tools
+
+- ansible.builtin.include_tasks: _homebrew_packages_legacy.yml
+  when: >
+    ansible_os_family == "Darwin" and
+    ansible_version.full is version('2.9', '>=') and
+    ansible_version.full is version('2.10', '<')
+  vars:
+    homebrew_packages:
+      - wireguard-go
+      - wireguard-tools

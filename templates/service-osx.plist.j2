@@ -8,10 +8,15 @@
         <string>{{service.name}}</string>
         <key>ProgramArguments</key>
         <array>
+          {% if service.type is defined and service.type == "oneshot" or service.type == "forking" %}
+            <string>/usr/local/bin/launchd-fork-wrapper</string>
+            <string>{{service.name}}</string>
+          {% else %}
           {% set _program_arguments = service.exec_start.split(' ') %}
           {% for _argument in _program_arguments %}
             <string>{{_argument}}</string>
           {% endfor %}
+          {% endif %}
         </array>
         {% if service.user is defined %}
         <key>UserName</key>

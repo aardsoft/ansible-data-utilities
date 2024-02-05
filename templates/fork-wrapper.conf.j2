@@ -1,0 +1,5 @@
+ExecStart="{{service.exec_start}}"
+{% if service.exec_stop is defined %}
+ExecStop="{{service.exec_stop}}"
+{% endif %}
+Type="{{service.type|default('oneshot')}}"
