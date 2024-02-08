@@ -57,35 +57,35 @@
 # elements there will cause the rule to be silently ignored.
 
 - name: configure firewalld services
-  include: _firewalld_manage_services.yml
+  include_tasks: _firewalld_manage_services.yml
   with_dict: "{{item.value}}"
   when: item.key == "services"
   loop_control:
     loop_var: rule
 
 - name: configure firewalld sources
-  include: _firewalld_manage_sources.yml
+  include_tasks: _firewalld_manage_sources.yml
   with_dict: "{{item.value}}"
   when: item.key == "sources"
   loop_control:
     loop_var: rule
 
 - name: configure firewalld ports
-  include: _firewalld_manage_ports.yml
+  include_tasks: _firewalld_manage_ports.yml
   with_dict: "{{item.value}}"
   when: item.key == "ports"
   loop_control:
     loop_var: rule
 
 - name: configure firewalld routed ports
-  include: _firewalld_manage_routed_ports.yml
+  include_tasks: _firewalld_manage_routed_ports.yml
   with_dict: "{{item.value}}"
   when: item.key == "routed_ports"
   loop_control:
     loop_var: rule
 
 - name: configure firewalld rich rules
-  include: _firewalld_manage_rich_rules.yml
+  include_tasks: _firewalld_manage_rich_rules.yml
   with_dict: "{{item.value}}"
   when: item.key == "rich_rules"
   loop_control:

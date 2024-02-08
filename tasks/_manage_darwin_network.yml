@@ -9,7 +9,7 @@
     ansible_os_family == "Darwin"
 
 - name: configure wireguard interfaces
-  include: _manage_wireguard.yml
+  include_tasks: _manage_wireguard.yml
   with_dict: "{{network_nodes[inventory_hostname].networks |default({})}}"
   loop_control:
     loop_var: _iface

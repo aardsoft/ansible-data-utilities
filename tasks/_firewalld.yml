@@ -51,7 +51,7 @@
     - access_setup
 
 - name: configure firewalld rules
-  include: _firewalld_rules.yml
+  include_tasks: _firewalld_rules.yml
   with_dict: "{{firewalld_rules}}"
   when: >
     firewalld_available == True and firewalld_rules is defined

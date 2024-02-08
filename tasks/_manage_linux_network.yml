@@ -24,12 +24,12 @@
   tags:
     - access_setup
 
-- include: _manage_linux_network_networkd.yml
+- include_tasks: _manage_linux_network_networkd.yml
   when: network_manager is defined and network_manager == "networkd"
   tags:
     - access_setup
 
-- include: manage_linux_iface.yml
+- include_tasks: manage_linux_iface.yml
   with_dict: "{{network_nodes[inventory_hostname].networks |default({})}}"
   loop_control:
     loop_var: _iface
@@ -77,7 +77,7 @@
     network_manager is defined and
     network_manager == "networkd"
 
-- include: _manage_linux_network_cleanup.yml
+- include_tasks: _manage_linux_network_cleanup.yml
   tags:
     - access_setup
 

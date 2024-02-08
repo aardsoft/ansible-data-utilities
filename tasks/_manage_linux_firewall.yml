@@ -16,7 +16,7 @@
   when: firewalld_result is succeeded
 
 - name: setup firewalld
-  include: _firewalld_setup.yml
+  include_tasks: _firewalld_setup.yml
   when: >
     firewalld_available == False and
     firewalld_required is defined and firewalld_required == True

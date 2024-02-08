@@ -125,7 +125,7 @@
 # this is not quite ideal as it'll re-check the wireguard configuration for
 # each interface
 - name: configure wireguard interfaces ({{_iface.key}})
-  include: _manage_wireguard.yml
+  include_tasks: _manage_wireguard.yml
   when: >
     _iface.value.manager is defined and _iface.value.manager == "wg" and
     wireguard is defined and wireguard[_iface.key] is defined
