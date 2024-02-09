@@ -5,6 +5,10 @@
     group: root
     mode: 0755
     state: directory
-  when: network_manager is defined and network_manager == "networkd"
+  when: >
+    (network_manager is defined and network_manager == "networkd") or
+    _iface_uses_networkd|default(false) == true
   tags:
     - access_setup
+- set_fact:
+    __networkd_configured: true

@@ -1,5 +1,23 @@
 # TODO: add support for device specific network managers outside of wireguard -
 #       this would make this useful as per-interface include as well
+
+- name: mark networkd for installation
+  set_fact:
+    _iface_uses_networkd: true
+  when: >
+    ((network_manager is defined and network_manager == "networkd") or
+     (_iface.value.manager is defined and _iface.value.manager == "networkd")) and
+    (_iface.value.manager is undefined or _iface.value.manager == "networkd")
+
+- include_tasks: _manage_linux_network_networkd.yml
+  when: >
+    ((network_manager is defined and network_manager == "networkd") or
+     (_iface.value.manager is defined and _iface.value.manager == "networkd")) and
+    (_iface.value.manager is undefined or _iface.value.manager == "networkd") and
+    __networkd_configured|default(false) == false
+  tags:
+    - access_setup
+
 # networkd links
 - name: configure network links (networkd, {{_iface.key}})
   template:
@@ -7,7 +25,8 @@
     dest: "/etc/systemd/network/{{_iface.value.cfg_prefix|default(10)}}-{{_iface.key}}.link"
     mode: 0644
   when: >
-    network_manager is defined and network_manager == "networkd" and
+    ((network_manager is defined and network_manager == "networkd") or
+     (_iface.value.manager is defined and _iface.value.manager == "networkd")) and
     (_iface.value.manager is undefined or _iface.value.manager == "networkd") and
     _iface.value.link_flags is defined and
     _iface.value.type|default('') != "ipmi"
@@ -20,9 +39,10 @@
   set_fact:
     __networkd_links: "{{__networkd_links + [_iface.value.cfg_prefix|default(10)+'-'+_iface.key+'.link']}}"
   when: >
-    network_manager is defined and network_manager == "networkd" and
-    _iface.value.link_flags is defined and
+    ((network_manager is defined and network_manager == "networkd") or
+     (_iface.value.manager is defined and _iface.value.manager == "networkd")) and
     (_iface.value.manager is undefined or _iface.value.manager == "networkd") and
+    _iface.value.link_flags is defined and
     _iface.value.type|default('') != "ipmi"
 
 - name: configure virtual network devices (networkd, {{_iface.key}})
@@ -31,9 +51,10 @@
     dest: "/etc/systemd/network/{{_iface.value.cfg_prefix|default(10)}}-{{_iface.key}}.netdev"
     mode: 0644
   when: >
-    network_manager is defined and network_manager == "networkd" and
-    _iface.value.type is defined and _iface.value.type != "phys" and
+    ((network_manager is defined and network_manager == "networkd") or
+     (_iface.value.manager is defined and _iface.value.manager == "networkd")) and
     (_iface.value.manager is undefined or _iface.value.manager == "networkd") and
+    _iface.value.type is defined and _iface.value.type != "phys" and
     _iface.value.type|default('') != "ipmi" and _iface.value.type != "veth"
   notify:
     - restart networkd
@@ -44,9 +65,10 @@
   set_fact:
     __networkd_netdevs: "{{__networkd_netdevs +  [_iface.value.cfg_prefix|default(10)+'-'+_iface.key+'.netdev']}}"
   when: >
-    network_manager is defined and network_manager == "networkd" and
-    _iface.value.type is defined and _iface.value.type != "phys" and
+    ((network_manager is defined and network_manager == "networkd") or
+     (_iface.value.manager is defined and _iface.value.manager == "networkd")) and
     (_iface.value.manager is undefined or _iface.value.manager == "networkd") and
+    _iface.value.type is defined and _iface.value.type != "phys" and
     _iface.value.type|default('') != "ipmi" and _iface.value.type != "veth"
 
 - name: configure static network interfaces (networkd, {{_iface.key}})
@@ -55,7 +77,8 @@
    dest: "/etc/systemd/network/{{_iface.value.cfg_prefix|default(10)}}-{{_iface.key}}.network"
    mode: 0644
   when: >
-    network_manager is defined and network_manager == "networkd" and
+    ((network_manager is defined and network_manager == "networkd") or
+     (_iface.value.manager is defined and _iface.value.manager == "networkd")) and
     (_iface.value.manager is undefined or _iface.value.manager == "networkd") and
     _iface.value.type|default('') != "ipmi"
   notify:
@@ -67,7 +90,8 @@
   set_fact:
     __networkd_networks: "{{__networkd_networks + [_iface.value.cfg_prefix|default(10)+'-'+_iface.key+'.network']}}"
   when: >
-    network_manager is defined and network_manager == "networkd" and
+    ((network_manager is defined and network_manager == "networkd") or
+     (_iface.value.manager is defined and _iface.value.manager == "networkd")) and
     (_iface.value.manager is undefined or _iface.value.manager == "networkd") and
     _iface.value.type|default('') != "ipmi"
 
@@ -102,7 +126,8 @@
   debug:
     msg: "wpa interface {{_iface}}"
   when: >
-    network_manager is defined and network_manager == "networkd" and
+    ((network_manager is defined and network_manager == "networkd") or
+     (_iface.value.manager is defined and _iface.value.manager == "networkd")) and
     (_iface.value.manager is undefined or _iface.value.manager == "networkd") and
     _iface.value.type|default('') != "ipmi" and
     _iface.value.wlan_passdb_entry is defined and
@@ -114,7 +139,8 @@
   set_fact:
     __wpa_supplicant_ifaces: "{{__wpa_supplicant_ifaces + [_iface.key]}}"
   when: >
-    network_manager is defined and network_manager == "networkd" and
+    ((network_manager is defined and network_manager == "networkd") or
+     (_iface.value.manager is defined and _iface.value.manager == "networkd")) and
     (_iface.value.manager is undefined or _iface.value.manager == "networkd") and
     _iface.value.type|default('') != "ipmi" and
     _iface.value.wlan_passdb_entry is defined and
