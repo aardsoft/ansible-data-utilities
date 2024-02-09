@@ -10,5 +10,32 @@
     _iface_uses_networkd|default(false) == true
   tags:
     - access_setup
+
+- name: create networkd conf.d
+  file:
+    path: /etc/systemd/networkd.conf.d
+    owner: root
+    group: root
+    mode: 0755
+    state: directory
+  when: >
+    (network_manager is defined and network_manager == "networkd") or
+    _iface_uses_networkd|default(false) == true
+  tags:
+    - access_setup
+
+- name: create networkd config override
+  template:
+    src: 10-networkd-ansible.conf.j2
+    dest: /etc/systemd/networkd.conf.d/10-networkd-ansible.conf
+    owner: root
+    group: root
+    mode: 0644
+  when: >
+    (network_manager is defined and network_manager == "networkd") or
+    _iface_uses_networkd|default(false) == true
+  tags:
+    - access_setup
+
 - set_fact:
     __networkd_configured: true
