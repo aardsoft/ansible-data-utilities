@@ -279,10 +279,12 @@ structures provided by this. '''
 
                         ipv4=network.get('ipv4')
                         if ipv4 != None:
+                            ipv4 = re.sub(r'/.*$', "", ipv4)
                             if ipv4 in items['ips'] and ipv4 not in dups and network.get('duplicate_ip') != True:
                                 parser['errors'].append("%s: duplicate IP %s" % (host, ipv4))
                             items['ips'].add(ipv4)
 
+                        # TODO, add proper validation to addresses in structs as well
                         if network.get('addresses') != None:
                             for address in network.get('addresses'):
                                 address_struct=network['addresses'][address]
