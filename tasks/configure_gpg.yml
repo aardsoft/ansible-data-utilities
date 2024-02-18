@@ -3,11 +3,28 @@
 - name: locate user home
   shell: "getent passwd `id -u`  | awk -F: '{ print $6 }'"
   register: shell
+  when: ansible_os_family != "Darwin"
+  changed_when: false
+
+- name: locate user home (Darwin)
+  shell: "dscl . read /Users/{{gpg.key}}|grep -i NFSHomeDirectory | awk '{ print $2}'"
+  register: darwin_shell
+  when: ansible_os_family == "Darwin"
+  changed_when: false
 
 - set_fact:
     gpg_user_home: "{{shell.stdout}}"
-    gpg_dir: "{{shell.stdout}}/.gnupg"
-    gpg_log_dir: "{{shell.stdout}}/.gnupg/log"
+  when: ansible_os_family != "Darwin"
+
+- set_fact:
+    gpg_user_home: "{{darwin_shell.stdout}}"
+  when: ansible_os_family == "Darwin"
+
+- set_fact:
+    gpg_dir: "{{gpg.value['home']|default(gpg_user_home + '/.gnupg')}}"
+
+- set_fact:
+    gpg_log_dir: "{{gpg.value['logdir']|default(gpg_dir + '/log')}}"
 
 - name: create gpg directory in {{gpg_dir}}
   file:
