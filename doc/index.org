@@ -222,17 +222,23 @@ The easiest way for managing Windows via Ansible is by just making sure SSH is a
 
 The [[./deploy-ssh.ps1][deploy-ssh]] powershell script can be used both for installing SSH during an unattended Windows installation (with the SSH installer provided on the media), as well as enable it later on.
 
-It will search for the installer =OpenSSH-Win64.zip= in =c:\ci=, the current directory and in the current users Download directory, in that order. If not found it will try to download it from the [[https://github.com/PowerShell/Win32-OpenSSH/releases][Win32-OpenSSH release page]].
+It will search for the installer =OpenSSH-Win64.zip= in =c:\ci=, the current directory and in the current users Download directory, in that order. If not found it will try to download it from the [[https://github.com/PowerShell/Win32-OpenSSH/releases][Win32-OpenSSH release page]]. It should be downloaded and executed in a powershell session with elevated privileges:
 
 #+BEGIN_SRC shell
-> Invoke-WebRequest -Uri https://raw.githubusercontent.com/aardsoft/ansible-data-utilities/master/doc/deploy-ssh.ps1 -OutFile deploy-ssh.ps1
-> ./deploy-ssh.ps1
+  > Invoke-WebRequest -Uri https://raw.githubusercontent.com/aardsoft/ansible-data-utilities/master/doc/deploy-ssh.ps1 -OutFile deploy-ssh.ps1
+  > ./deploy-ssh.ps1
+#+END_SRC
+
+If the execution policy for scripts has not been changed from the default it may be necessary to bypass it for running the script:
+
+#+BEGIN_SRC shell
+  > powershell -executionpolicy bypass -File ./deploy-ssh.ps1
 #+END_SRC
 
 On old Windows versions it may be required to force Powershell to use recent TLS mechanisms for the download - set the following if above throws SSL errors:
 
 #+BEGIN_SRC shell
-> [Net.ServicePointManager]::SecurityProtocol = "tls12, tls11, tls"
+  > [Net.ServicePointManager]::SecurityProtocol = "tls12, tls11, tls"
 #+END_SRC
 
 If using RDP to connect to the server the connection may get terminated while running =deploy-ssh.ps1=, though SSH access should be reachable from that point:
