@@ -247,7 +247,7 @@ If using RDP to connect to the server the connection may get terminated while ru
 $ ssh -o PubkeyAuthentication=no Administrator@windows-system
 #+END_SRC
 
-Depending on the Windows version it may now be possible to also run an access playbook, or manual setup of SSH keys may be required.
+Depending on the Windows version it may now be possible to also run an access playbook, or manual setup of SSH keys may be required. Running the playbook will handle setting up authorized keys as on other platforms - when manually installing an =authorized_keys= file for access setup note that the default configuration uses =ProgramData\ssh\administrators_authorized_keys= for any users in the =administrators= group. For other users the location is in =.ssh\authorized_keys= in the root of their home directory.
 
 *** Windows custom image
 :PROPERTIES:
