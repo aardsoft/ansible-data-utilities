@@ -213,6 +213,20 @@ This page collects information related to managing the automated installation sy
 :CUSTOM_ID: deploy_access_setup
 :END:
 
+*** macOS SSH setup
+:PROPERTIES:
+:CUSTOM_ID: deploy_macos_ssh
+:END:
+
+On macOS images without custom provisioning remote login needs to be enabled. For modern macOS versions this typically also requires granting full disk access privileges:
+
+#+BEGIN_SRC shell
+% sudo launchctl load -w /System/Library/LaunchDaemons/ssh.plist
+% sudo systemsetup -setremotelogin on
+#+END_SRC
+
+Ansible will use python3, which is not installed per default, and comes with the Command Line Developer Tools. If not installed a first Ansible run may fail with an interactive prompt on the desktop to install those. After finishing the installer the Ansible run should succeed.
+
 *** Windows SSH setup
 :PROPERTIES:
 :CUSTOM_ID: deploy_windows_ssh
