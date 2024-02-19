@@ -653,15 +653,26 @@ Available variables are:
 - passdb_password_length, default 20. This is used when creating passwords from within Ansible.
 - passdb_password_create, bool, default =True=. Configures if Ansible is allowed to create missing passwords.
 - passdb_extra_arg, default = create={{passdb_password_create}} length={{passdb_password_length}}=
-- passdb_check_value, default empty. Allows setting a record to check if passdb is working. This is useful for writing playbooks executable by both full access admins and people without access to some passwords. A sensible value typically is the entry for the default root password.
+- passdb_check_entry, default empty. Allows setting a record to check if passdb is working. This is useful for writing playbooks executable by both full access admins and people without access to some passwords. A sensible value typically is the entry for the default root password.
 
 The variable =default_passdb_available= will be set by this include:
 
-- =True= if no =passdb_check_value= has been configured. This can lead to errors when executed without correct passdb access permissions.
-- =True= if =passdb_check_value= is accessible.
-- =False= if =passdb_check_value= is inaccessible.
+- =True= if no =passdb_check_entry= has been configured. This can lead to errors when executed without correct passdb access permissions.
+- =True= if =passdb_check_entry= is accessible.
+- =False= if =passdb_check_entry= is inaccessible.
 
 Tasks/roles should use this variable to guard sections prompting for credentials, or skip execution completely.
+
+**** using 1password as passdb backend
+:PROPERTIES:
+:CUSTOM_ID: passdb_1password
+:END:
+
+Using 1password requires the [[https://developer.1password.com/docs/cli/get-started/][1password CLI]] to be installed and configured to ask for credentials when queried in an unlocked state - like connecting it to the desktop application. =passdb= then must be set to =community.general.onepassword=, =passdb_extra_arg= to "".
+
+Currently limits to specific vaults or other settings supported by the module can't be configured in this role - see [[https://github.com/aardsoft/ansible-data-utilities/issues/8][this issue]] for details.
+
+Passwords should be saved as items of type =Password=. The name of the item is used for the lookup, the content of the field =password= is retrieved. All other fields will be ignored when filled.
 
 * Inventory plugin
 :PROPERTIES:
