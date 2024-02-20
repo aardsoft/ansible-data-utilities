@@ -28,8 +28,6 @@
 
 - name: clean apt cache
   command: apt-get -y clean
-  args:
-    warn: False
   changed_when: false
   become: true
   when: >
@@ -39,8 +37,6 @@
 
 - name: force repository refresh
   command: apt-get update
-  args:
-    warn: False
   changed_when: false
   become: true
   when: >
