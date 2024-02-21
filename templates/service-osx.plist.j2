@@ -8,7 +8,7 @@
         <string>{{service.name}}</string>
         <key>ProgramArguments</key>
         <array>
-          {% if service.type is defined and service.type == "oneshot" or service.type == "forking" %}
+          {% if service.type|default("") == "oneshot" or service.type|default("") == "forking" %}
             <string>/usr/local/bin/launchd-fork-wrapper</string>
             <string>{{service.name}}</string>
           {% else %}
@@ -25,6 +25,10 @@
         {% if service.group is defined %}
         <key>GroupName</key>
         <string>{{service.group}}</string>
+        {% endif %}
+        {% if service.working_directory is defined %}
+        <key>WorkingDirectory</key>
+        <string>{{service.working_directory}}</string>
         {% endif %}
         <key>KeepAlive</key>
         {% if service.restart is undefined or service.restart == 'always' %}
@@ -64,5 +68,13 @@
             <string>{{service.environment[env]}}</string>
             {% endfor %}
         </dict>
+        {% if service.process_type is defined %}
+        <key>ProcessType</key>
+        <string>{{service.process_type}}</string>
+        {% endif %}
+        {% if service.session_create|default(false) == true %}
+        <key>SessionCreate</key>
+        <true/>
+        {% endif %}
     </dict>
 </plist>

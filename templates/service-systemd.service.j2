@@ -20,6 +20,9 @@ User={{service.user}}
 {% for env in service.environment|default({}) %}
 Environment={{env}}={{service.environment[env]}}
 {% endfor %}
+{% if service.working_directory is defined %}
+WorkingDirectory={{service.working_directory}}
+{% endif %}
 
 
 [Install]
