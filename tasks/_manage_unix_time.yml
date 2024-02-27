@@ -6,9 +6,22 @@
   tags:
     - base_config
 
+# macOS has /usr/share/zoneinfo symlinked to the database in /var/db - and all
+# the lower level parts are correctly working with localtime pointing to that.
+# However, the GUI not only checks the content of the timezone file, but also
+# its location, and ignorse it if it is not in /var/db, and will correct the
+# link on next reboot.
+- set_fact:
+    zoneinfo_dir: /var/db/timezone/zoneinfo
+  tags:
+    - base_config
+  when: >
+    ansible_os_family == "Darwin" and
+    zoneinfo_dir is undefined
+
 - name: set /etc/localtime
   ansible.builtin.file:
-    src: "/usr/share/zoneinfo/{{ host_timezone }}"
+    src: "{{zoneinfo_dir|default('/usr/share/zoneinfo')}}/{{ host_timezone }}"
     dest: /etc/localtime
     state: link
     force: yes
