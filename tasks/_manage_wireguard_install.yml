@@ -1,7 +1,7 @@
 - set_fact:
     _wg_installed: true
 
-- name: make sure wireguard configuration directory exists
+- name: make sure wireguard configuration directory exists ({{_wireguard_confdir}})
   ansible.builtin.file:
     path: "{{_wireguard_confdir}}"
     owner: root
