@@ -1,8 +1,8 @@
 - name: verify ansible version
   ansible.builtin.assert:
-    that: "ansible_version.full is version_compare('2.9.17', '>=')"
+    that: "ansible_version.full is version_compare('2.14.0', '>=')"
     msg: >
-      Minimum ansible version required for running this is 2.9.17
+      Minimum ansible version required for running this is 2.14
   tags:
     - base_config
     - access_setup
