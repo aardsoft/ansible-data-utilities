@@ -72,9 +72,9 @@
   when: __service_state != 'absent'
 
 - name: unregister service (Darwin)
-  shell: "launchctl bootout system {{__service_file}}"
-  changed_when: false
-  ignore_errors: true
+  community.general.launchd:
+    state: unloaded
+    name: "{{service.name}}"
   when: >
     ansible_os_family == "Darwin" and
     __service_state == 'absent'
@@ -96,20 +96,20 @@
   when: >
     __service_state == 'absent'
 
-# for newer ansible this should be done by the launchctl module
-- name: unregister service
-  shell: "launchctl bootout system {{__service_file}}"
-  changed_when: false
-  ignore_errors: true
+- name: register service (Darwin)
+  community.general.launchd:
+    state: reloaded
+    name: "{{service.name}}"
   when: >
     ansible_os_family == "Darwin" and
     __service_state != 'absent' and
     (__service_status is defined and
     __service_status is changed)
 
-- name: register service (Darwin)
-  shell: "launchctl bootstrap system {{__service_file}}"
-  changed_when: false
+- name: start register service (Darwin)
+  community.general.launchd:
+    state: started
+    name: "{{service.name}}"
   when: >
     ansible_os_family == "Darwin" and
     __service_state != 'absent' and
