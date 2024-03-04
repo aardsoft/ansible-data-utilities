@@ -30,24 +30,6 @@
         <key>WorkingDirectory</key>
         <string>{{service.working_directory}}</string>
         {% endif %}
-        <key>KeepAlive</key>
-        {% if service.restart is undefined or service.restart == 'always' %}
-        <true/>
-        {% elif service.restart == 'on-failure' or service.restart == 'on-abort' %}
-        <dict>
-          <key>Crashed</key>
-          <true/>
-        </dict>
-        {% elif service.restart == 'on-success' %}
-        <dict>
-          <key>SuccessfulExit</key>
-          <true/>
-        </dict>
-        {% else %}
-        <false/>
-        {% endif %}
-        <key>RunAtLoad</key>
-        <true/>
         {% if service.standard_error is defined %}
         <key>StandardErrorPath</key>
         <string>{{service.standard_error}}</string>
@@ -74,6 +56,51 @@
         {% endif %}
         {% if service.session_create|default(false) == true %}
         <key>SessionCreate</key>
+        <true/>
+        {% endif %}
+        {% if service.calendar_interval is defined %}
+        <key>StartCalendarInterval</key>
+        <dict>
+          {% if service.calendar_interval.hour is defined %}
+          <key>Hour</key>
+          <integer>{{service.calendar_interval.hour}}</integer>
+          {% endif %}
+          {% if service.calendar_interval.minute is defined %}
+          <key>Minute</key>
+          <integer>{{service.calendar_interval.minute}}</integer>
+          {% endif %}
+          {% if service.calendar_interval.weekday is defined %}
+          <key>Weekday</key>
+          <integer>{{service.calendar_interval.weekday}}</integer>
+          {% endif %}
+          {% if service.calendar_interval.day is defined %}
+          <key>Day</key>
+          <integer>{{service.calendar_interval.day}}</integer>
+          {% endif %}
+          {% if service.calendar_interval.month is defined %}
+          <key>Month</key>
+          <integer>{{service.calendar_interval.month}}</integer>
+          {% endif %}
+        </dict>
+        {% else %}
+        {# Prevent setting KeepAlive or RunAtLoad for timers #}
+        <key>KeepAlive</key>
+        {% if service.restart is undefined or service.restart == 'always' %}
+        <true/>
+        {% elif service.restart == 'on-failure' or service.restart == 'on-abort' %}
+        <dict>
+          <key>Crashed</key>
+          <true/>
+        </dict>
+        {% elif service.restart == 'on-success' %}
+        <dict>
+          <key>SuccessfulExit</key>
+          <true/>
+        </dict>
+        {% else %}
+        <false/>
+        {% endif %}
+        <key>RunAtLoad</key>
         <true/>
         {% endif %}
     </dict>
