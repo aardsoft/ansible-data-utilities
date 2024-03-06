@@ -51,6 +51,10 @@ if (-not (Test-Path variable:ci_target_dir)){
     $ci_target_dir = "ci"
 }
 
+if (-not (Test-Path variable:imgburn)){
+    $imgburn = "${Env:ProgramFiles(x86)}\ImgBurn\ImgBurn.exe"
+}
+
 if(!(get-DiskImage -ImagePath $iso_path).Attached){
     Mount-DiskImage -ImagePath $iso_path
 }
@@ -161,3 +165,12 @@ if ($wait_for_manual){
 
 Dismount-WindowsImage -Path ${boot_mnt} -save -checkintegrity
 Dismount-WindowsImage -Path ${install_mnt} -save -checkintegrity
+
+if ((Test-Path variable:new_iso_path) -and
+    (Test-Path -Path $imgburn))
+{
+    & ${imgburn} /mode build /buildinputmode advanced /buildoutputmode imagefile /src ${image_path}\data /dest ${new_iso_path} /volumelabel WIN10 /filesystem UDF /udfrevision 1.02 /recursesubdirectories yes /includehiddenfiles yes /includesystemfiles yes /bootimage "${image_path}\data\boot\etfsboot.com" /bootemutype 0 /bootsectorstoload 8 /bootloadsegment 07C0 /start /closesuccess /rootfolder yes /portable /noimagedetails
+} else {
+    Write-Warning "Skipping media creation. If you don't want that set new_iso_path and install imgburn."
+    Write-Warning "Also set imgburn if imgburn is not in default directories."
+}
