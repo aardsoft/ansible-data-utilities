@@ -1,0 +1,10 @@
+# this is a simple playbook to check inventory hosts for reachability
+- hosts: all
+  vars:
+    ansible_user: management
+  tasks:
+    - set_fact:
+        unreachable: "{{ ansible_play_hosts_all | difference(ansible_play_hosts)}}"
+        ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
+    - debug:
+        msg: "Unreachable systems: {{unreachable}}"
