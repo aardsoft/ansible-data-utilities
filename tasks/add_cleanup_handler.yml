@@ -1,0 +1,11 @@
+- fail:
+    msg: "'cleanup_handlers' needs to be set for registering handlers"
+  when: cleanup_handlers is undefined
+
+- set_fact:
+    data_utilities_cleanup_handlers: "{{data_utilities_cleanup_handlers + cleanup_handlers}}"
+  when: data_utilities_cleanup_handlers is defined
+
+- set_fact:
+    data_utilities_cleanup_handlers: "{{cleanup_handlers}}"
+  when: data_utilities_cleanup_handlers is undefined
