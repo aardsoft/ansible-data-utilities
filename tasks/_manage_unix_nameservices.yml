@@ -44,7 +44,8 @@
   tags:
     - base_config
   when: >
-    ansible_virtualization_type != "docker"
+    ansible_virtualization_type != "docker" and
+    is_wsl|default(false) == false
 
 - name: add resolved configuration
   ansible.builtin.template:
