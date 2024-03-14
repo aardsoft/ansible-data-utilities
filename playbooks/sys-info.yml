@@ -1,0 +1,15 @@
+# ansible-playbook sys-info.yml -u <user> [--ask-pass] [--ssh-extra-args "-o PubkeyAuthentication=no"] -l <host>
+#
+# Print a short system overview
+
+- hosts: all
+  tasks:
+    - debug:
+        msg:
+          - "Machine: {{ansible_machine|default('N/A')}}"
+          - "Architecture: {{ansible_architecture}}"
+          - "OS Family: {{ansible_os_family}}"
+          - "Distribution: {{ansible_distribution}}"
+          - "Version: {{ansible_distribution_version}}"
+          - "Virtualization: {{ansible_virtualization_type|default('N/A')}}"
+          - "Service manager: {{ansible_service_mgr|default('N/A')}}"
