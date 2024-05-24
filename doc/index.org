@@ -571,6 +571,7 @@ For OS X and Linux the following keys are supported:
 Linux additionally supports:
 
 - exec_start_pre
+- exec_start_post
 - restart_sec
 - description
 - wanted_by, defaulting to =multi-user.target=
