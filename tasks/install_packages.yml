@@ -18,7 +18,7 @@
     _bootstrap: true
 
 - debug:
-    msg: "Unhandled package type {{_packages|type_debug}}"
+    msg: "Unhandled package type {{_packages|type_debug}} for {{_packages}}"
   when: >
     _packages|type_debug != "list" and
     _packages|type_debug != "dict"
