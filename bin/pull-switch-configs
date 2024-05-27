@@ -73,11 +73,11 @@ for switch in $_switches; do
     case "$_type" in
         "dell")
             _ssh_args="$_switch_ssh_args"
-            sshpass -e scp $_ssh_args $_user@$_host:startup-config "$_config_dir"/"$_config"
+            sshpass -e scp -O $_ssh_args $_user@$_host:startup-config "$_config_dir"/"$_config"
             ;;
         "fs")
             _ssh_args="$_switch_ssh_args"
-            sshpass -e scp $_ssh_args $_user@$_host:startup-config.conf "$_config_dir"/"$_config"
+            sshpass -e scp -O $_ssh_args $_user@$_host:startup-config.conf "$_config_dir"/"$_config"
             ;;
         "fs_sftp")
             _ssh_args="$_switch_ssh_args"
@@ -85,7 +85,7 @@ for switch in $_switches; do
             ;;
         "hp")
             _ssh_args="$_switch_ssh_args -c aes128-cbc"
-            sshpass -e scp $_ssh_args $_user@$_host:/startup.cfg "$_config_dir"/"$_config"
+            sshpass -e scp -O $_ssh_args $_user@$_host:/startup.cfg "$_config_dir"/"$_config"
             ;;
         "zyxel")
             _ssh_args="$_switch_ssh_args -o KexAlgorithms=+diffie-hellman-group1-sha1"
@@ -94,7 +94,7 @@ for switch in $_switches; do
         "mikrotik")
             _ssh_args="$_switch_ssh_args"
             sshpass -e ssh $_ssh_args $_user@$_host export file=startup-config
-            sshpass -e scp $_ssh_args $_user@$_host:startup-config.rsc "$_config_dir"/"$_config"
+            sshpass -e scp -O $_ssh_args $_user@$_host:startup-config.rsc "$_config_dir"/"$_config"
             ;;
         *)
             echo "Unknown type $_type, skipping"
