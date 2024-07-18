@@ -55,8 +55,13 @@ if (-not (Test-Path variable:imgburn)){
     $imgburn = "${Env:ProgramFiles(x86)}\ImgBurn\ImgBurn.exe"
 }
 
-if(!(get-DiskImage -ImagePath $iso_path).Attached){
-    Mount-DiskImage -ImagePath $iso_path
+if (Test-Path $iso_path){
+    if(!(get-DiskImage -ImagePath $iso_path).Attached){
+        Mount-DiskImage -ImagePath $iso_path
+    }
+} else {
+    Write-Warning "Disk image ${iso_path} does not exist."
+    exit
 }
 
 # todo, error handling about mounting
@@ -133,7 +138,7 @@ if (Test-Path variable:remove_apps){
     }
 }
 
-New-Item -Path ${install_mnt}\${ci_target_dir} -ItemType Directory
+New-Item -Path ${install_mnt}\${ci_target_dir} -ItemType Directory -Force
 
 if ((Test-Path variable:ci_source_path) -and
     (Test-Path -Path $ci_source_path))
@@ -157,7 +162,22 @@ if ((Test-Path variable:autounattend_path) -and
     Write-Warning "No autounattend file in autounattend_path variable or CI script directory, skipping."
 }
 
-Write-Status "active image mounts (this may show mounts from other processes):"
+if (Test-Path variable:virtio_iso_path){
+    if (Test-Path $virtio_iso_path){
+        if(!(get-DiskImage -ImagePath $virtio_iso_path).Attached){
+            Mount-DiskImage -ImagePath $virtio_iso_path
+            $virtio_cd_drive = (get-DiskImage -ImagePath $virtio_iso_path | Get-Volume).DriveLetter
+            Write-Status "Trying to inject drivers from ${virtio_cd_drive}:\"
+            Add-WindowsDriver -path ${boot_mnt} -driver "${virtio_cd_drive}:\" -recurse
+            Add-WindowsDriver -path ${install_mnt} -driver "${virtio_cd_drive}:\" -recurse
+            Dismount-DiskImage -ImagePath $virtio_iso_path
+        }
+    } else {
+        Write-Warning "Disk image ${virtio_iso_path} not found, skipping driver injection"
+    }
+}
+
+Write-Status "Active image mounts (this may show mounts from other processes):"
 Get-WindowsImage -Mounted
 if ($wait_for_manual){
     $foo = Read-Host "You can inject data into above mount locations now. Press any key to continue."
@@ -169,7 +189,7 @@ Dismount-WindowsImage -Path ${install_mnt} -save -checkintegrity
 if ((Test-Path variable:new_iso_path) -and
     (Test-Path -Path $imgburn))
 {
-    & ${imgburn} /mode build /buildinputmode advanced /buildoutputmode imagefile /src ${image_path}\data /dest ${new_iso_path} /volumelabel WIN10 /filesystem UDF /udfrevision 1.02 /recursesubdirectories yes /includehiddenfiles yes /includesystemfiles yes /bootimage "${image_path}\data\boot\etfsboot.com" /bootemutype 0 /bootsectorstoload 8 /bootloadsegment 07C0 /start /closesuccess /rootfolder yes /portable /noimagedetails
+    & ${imgburn} /mode build /buildinputmode advanced /buildoutputmode imagefile /src ${image_path}\data /dest ${new_iso_path} /volumelabel WIN10 /filesystem UDF /udfrevision 1.02 /recursesubdirectories yes /includehiddenfiles yes /includesystemfiles yes /bootimage "${image_path}\data\boot\etfsboot.com" /bootemutype 0 /bootsectorstoload 8 /bootloadsegment 07C0 /start /closesuccess /rootfolder yes /portable /noimagedetails /overwrite yes
 } else {
     Write-Warning "Skipping media creation. If you don't want that set new_iso_path and install imgburn."
     Write-Warning "Also set imgburn if imgburn is not in default directories."

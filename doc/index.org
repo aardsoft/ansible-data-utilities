@@ -274,6 +274,8 @@ The [[./windows-image.ps1][windows-image]] powershell script can be used to most
 
 #+BEGIN_EXAMPLE
 $iso_path="c:\Users\example\Documents\Windows.iso"
+$new_iso_path="c:\Users\example\Documents\Windows_unattended.iso"
+$virtio_iso_path="c:\Users\example\Documents\virtio.iso"
 $image_path="c:\unattended_image"
 $ci_source_path="c:\ci"
 $ci_target_dir="\ci"
@@ -299,6 +301,8 @@ It should be saved as powershell script (with ending =.ps1=), and can be passed 
 =ci_source_path= is the path to a directory containing the files to be injected into the image. A detailed suggestion on how to use this directory is in the section below.
 
 =ci_target_dir= is the path to a directory relative to the mountpoint of the install media to place the files. =\ci= would place them at the root of the install drive after installation (typically =c:\ci=)
+
+=virtio_iso_path= is the path to an ISO image containing virtio drivers. If this is specified (and exists) all drivers on this ISO will be injected into the new image. Newer Windows versions require signed drivers - it is recommended to use WHQL signed drivers. One option for this is to use the drivers [[https://github.com/tprasadtp/virtio-whql][extracted from rocky linux]].
 
 The script expects a Windows ISO file, which can be created by
 
