@@ -98,6 +98,7 @@ $boot_wim="${image_path}\data\sources\boot.wim"
 $boot_mnt="${image_path}\boot\"
 $install_mnt="${image_path}\install\"
 
+$install_os_index = ${os_index}
 # Newer Windows versions seem to have abandoned the esd file - so this step may
 # get skipped. In this case the upstream wim file most likely has multiple
 # editions - with the selection of the image happening either at install time
@@ -111,7 +112,9 @@ if (-not (Test-Path -PathType Leaf -Path $install_wim)){
     Write-Status "Extracting image at index ${os_index}, this will take a while..."
     dism /Export-Image /SourceImageFile:${install_esd} /DestinationImageFile:${install_wim} /SourceIndex:${os_index} /CheckIntegrity /Compress:Max
     Remove-Item -Force $install_esd
+    $install_os_index=1
 } else {
+    # TODO: list available images, and select 1 if there's only one
     Write-Warning "install.wim already exists, skipping."
     Write-Warning "Remove ${install_wim} to repeat the extraction from esd."
 }
@@ -129,7 +132,7 @@ Write-Output "install.wim contains:"
 Get-WindowsImage -ImagePath ${install_wim}
 
 Mount-WindowsImage -ImagePath ${boot_wim} -Index 2 -Path ${boot_mnt}
-Mount-WindowsImage -ImagePath ${install_wim} -Index 1 -Path ${install_mnt}
+Mount-WindowsImage -ImagePath ${install_wim} -Index ${install_os_index} -Path ${install_mnt}
 
 if (Test-Path variable:remove_apps){
     foreach ($app in $remove_apps){
