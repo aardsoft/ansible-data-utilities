@@ -234,6 +234,14 @@ structures provided by this. '''
                 if system.get('old_domain') == None and data.get('old_default_domain') != None:
                     data[k['hosts']][host]['old_domain']=data.get('old_default_domain')
 
+                # If the config of `host` is to be dumped, make sure `localhost`
+                # has all the same groups and variables. This is so that local
+                # templating works.
+                if data.get('dump_config') == host:
+                    if not data[k['hosts']].has_key('localhost'):
+                        data[k['hosts']]['localhost'] = {}
+                    data[k['host']]['localhost'].update(system)
+
                 # currently there are two loops over the networks - this first
                 # loop contains checks where system type checking doesn't
                 # matter
