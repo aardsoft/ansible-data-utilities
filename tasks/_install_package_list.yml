@@ -16,7 +16,6 @@
   apt:
     deb: "{{_deb}}"
   with_items: "{{_packages}}"
-  when: bootstrap_debs is defined
   register: _bootstrap_deb_result
   loop_control:
     loop_var: _deb
@@ -62,7 +61,10 @@
     state: present
   retries: "{{install_retries|default(3)}}"
   become: true
-  when: ansible_os_family == "RedHat" and ansible_pkg_mgr == "dnf"
+  when: >
+    ansible_os_family == "RedHat" and
+    ansible_pkg_mgr == "dnf" and
+    dump_config is not defined
 
 - name: Install packages for {{role_name}} (RedHat/yum)
   ansible.builtin.yum:
@@ -70,10 +72,15 @@
     state: present
   retries: "{{install_retries|default(3)}}"
   become: true
-  when: ansible_os_family == "RedHat" and ansible_pkg_mgr == "yum"
+  when: >
+    ansible_os_family == "RedHat" and
+    ansible_pkg_mgr == "yum" and
+    dump_config is not defined
 
 - name: Install packages for {{role_name}} (Darwin)
   include_tasks: _homebrew_packages.yml
   vars:
     homebrew_packages: "{{role_packages}}"
-  when: ansible_os_family == "Darwin"
+  when: >
+    ansible_os_family == "Darwin" and
+    dump_config is not defined

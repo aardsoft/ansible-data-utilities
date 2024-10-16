@@ -41,6 +41,22 @@
 
 - ansible.builtin.set_fact:
     _root_group: "{% if ansible_os_family == 'Darwin' %}wheel{% else %}root{% endif %}"
+    _root_user: root
+  tags:
+    - base_config
+    - access_setup
+
+- name: dump_config override root
+  ansible.builtin.set_fact:
+    _root_group: "{{lookup('env', 'USER')}}"
+    _root_user: "{{lookup('env', 'USER')}}"
+  when: dump_config is defined
+  tags:
+    - base_config
+    - access_setup
+
+- ansible.builtin.set_fact:
+    _delegation: "{%if dump_config is defined %}localhost{% else %}{{inventory_host}}{% endif %}"
   tags:
     - base_config
     - access_setup
