@@ -1,0 +1,24 @@
+- name: restart networkd
+  systemd: name=systemd-networkd state=restarted daemon_reload=yes
+  when: >
+    ansible_service_mgr == 'systemd' and
+    is_wsl|default(false) == false
+
+- name: restart resolved
+  systemd: name=systemd-resolved state=restarted daemon_reload=yes
+  when: >
+    ansible_service_mgr == 'systemd' and
+    is_wsl|default(false) == false
+
+- name: restart wpa_supplicant
+  systemd:
+    name: "wpa_supplicant@{{__iface}}.service"
+    enabled: yes
+    state: restarted
+  with_items: "{{__wpa_supplicant_ifaces}}"
+  loop_control:
+    loop_var: __iface
+  when: >
+    network_manager is defined and network_manager == "networkd" and
+    __wpa_supplicant_ifaces is defined and
+    __wpa_supplicant_ifaces|count >= 1
