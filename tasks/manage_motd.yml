@@ -1,0 +1,31 @@
+- set_fact:
+    motd_d_path: /etc/motd.d
+  when: motd_d_path is undefined
+
+- name: create motd.d
+  file:
+    state: directory
+    mode: 0755
+    owner: root
+    path: "{{motd_d_path}}"
+
+- name: add motd files
+  include_tasks: _add_remove_motd.yml
+  vars:
+    _motd_dict: "{{motd_templates}}"
+  when: motd_templates is defined
+
+- name: add motd files for hostname
+  include_tasks: _add_remove_motd.yml
+  vars:
+    _motd_dict: "{{hostvars[inventory_hostname]['motd_templates_' ~ inventory_hostname]}}"
+  when: "hostvars[inventory_hostname]['motd_templates_' ~ inventory_hostname] is defined"
+
+- name: add motd files for groups
+  include_tasks: _add_remove_motd.yml
+  with_items: "{{group_names}}"
+  vars:
+    _motd_dict: "{{hostvars[inventory_hostname]['motd_templates_' ~ _group_name]}}"
+  loop_control:
+    loop_var: _group_name
+  when: "hostvars[inventory_hostname]['motd_templates_' ~ _group_name] is defined"

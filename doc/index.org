@@ -635,6 +635,31 @@ This include tries to set the system hostname. On Windows this may require a reb
 
 For setting the hostname either the =hostname= variable is used, or - if missing - the hostname is generated from the inventory hostname.
 
+*** manage_motd
+:PROPERTIES:
+:CUSTOM_ID: include_manage_motd
+:END:
+
+This adds or removes files for motd. Variables controlling this should be set in group or host variables.
+
+=motd_templates= controls templates for all hosts. =motd_templates_<hostname>= controls templates for the specific host only. =motd_templates_<groupname>= are added if the host is in that group.
+
+The variables should be a dict, with optional keys =filename= and =state=. If =state= is =absent= the file will be removed, added for all other values. =filename= controls the filename in the motd directory - if unset the key will be used. The template is always looked up as the key with .j2 appended.
+
+The =basic-host= role includes this file for all Linux systems - so as long as this role is used there should be no need to include this file.
+
+#+BEGIN_SRC yaml
+motd_templates:
+  motd_default:
+
+motd_templates_dummy:
+  motd_dummy:
+  motd_gone:
+    state: absent
+#+END_SRC
+
+This example would add =motd_default.j2= to all hosts, and =motd_dummy.j2= to a host named or in a group called =dummy=, and remove =motd_gone= from that host.
+
 *** manage_nameservices
 :PROPERTIES:
 :CUSTOM_ID: include_manage_nameservices
