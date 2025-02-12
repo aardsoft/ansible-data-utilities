@@ -18,14 +18,14 @@
 - name: add motd files for hostname
   include_tasks: _add_remove_motd.yml
   vars:
-    _motd_dict: "{{hostvars[inventory_hostname]['motd_templates_' ~ inventory_hostname]}}"
-  when: "hostvars[inventory_hostname]['motd_templates_' ~ inventory_hostname] is defined"
+    _motd_dict: "{{hostvars[delegate_hostname|default(inventory_hostname)]['motd_templates_' ~ inventory_hostname]}}"
+  when: "hostvars[delegate_hostname|default(inventory_hostname)]['motd_templates_' ~ inventory_hostname] is defined"
 
 - name: add motd files for groups
   include_tasks: _add_remove_motd.yml
   with_items: "{{group_names}}"
   vars:
-    _motd_dict: "{{hostvars[inventory_hostname]['motd_templates_' ~ _group_name]}}"
+    _motd_dict: "{{hostvars[delegate_hostname|default(inventory_hostname)]['motd_templates_' ~ _group_name]}}"
   loop_control:
     loop_var: _group_name
-  when: "hostvars[inventory_hostname]['motd_templates_' ~ _group_name] is defined"
+  when: "hostvars[delegate_hostname|default(inventory_hostname)]['motd_templates_' ~ _group_name] is defined"
