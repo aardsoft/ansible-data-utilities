@@ -1,0 +1,28 @@
+- name: mask global wpa supplicant
+  systemd:
+    name: wpa_supplicant.service
+    masked: yes
+    state: stopped
+    force: yes
+  when: >
+    network_manager is defined and network_manager == "networkd" and
+    __wpa_supplicant_ifaces is defined and
+    __wpa_supplicant_ifaces|count >= 1
+  tags:
+    - access_setup
+
+- name: create wpa_supplicant configuration files
+  template:
+    src: wpa_supplicant.conf.j2
+    dest: /etc/wpa_supplicant/wpa_supplicant.conf
+    owner: root
+    group: root
+    mode: 0600
+  when: >
+    network_manager is defined and network_manager == "networkd" and
+    __wpa_supplicant_ifaces is defined and
+    __wpa_supplicant_ifaces|count >= 1
+  notify:
+    - restart wpa_supplicant
+  tags:
+    - access_setup
