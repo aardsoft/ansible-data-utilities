@@ -2,17 +2,61 @@
 # {{ ansible_managed }}
 # Note: {{__wpa_supplicant_ifaces|count}} interface(s) detected for WPA
 
-ctrl_interface=/var/run/wpa_supplicant
-ctrl_interface_group=wheel
+{% if wpa_supplicant is undefined %}
+{% set wpa_supplicant = {} %}
+{% endif %}
+
+ctrl_interface={{wpa_supplicant.ctrl_interface|default('/var/run/wpa_supplicant')}}
+ctrl_interface_group={{wpa_supplicant.ctrl_interface_group|default('wheel')}}
+
+update_config={{wpa_supplicant.update_config|default('0')|boolconv('int')}}
+filter_ssids={{wpa_supplicant.filter_ssids|default('0')|boolconv('int')}}
+okc={{wpa_supplicant.okc|default('0')|boolconv('int')}}
+fast_reauth={{wpa_supplicant.fast_reauth|default('1')|boolconv('int')}}
 
 {% for _iface_key in network_nodes[inventory_hostname].networks %}
   {% set _iface = network_nodes[inventory_hostname].networks[_iface_key] %}
-  {% if _iface.wlan_ssid is defined and _iface.wlan_passdb_entry is defined %}
+  {% if (_iface.wlan_ssid is defined or _iface.wlan.ssid is defined) and (_iface.wlan_passdb_entry is defined or _iface.wlan.passdb_entry is defined) %}
 # {{_iface_key}}
 network={
-	ssid="{{_iface.wlan_ssid}}"
-	psk={{lookup(passdb, _iface.wlan_passdb_entry)}}
+  ssid="{{_iface.wlan_ssid|default(_iface.wlan.ssid)}}"
+  auth_alg={{_iface.wlan.auth_alg|default('OPEN')}}
+  proto={{_iface.wlan.proto|default('WPA2')}}
+  {% if _iface.wlan.key_mgmt is undefined or "WPA-PSK" in _iface.wlan.key_mgmt %}
+  psk={{lookup(passdb, _iface.wlan_passdb_entry|default(_iface.wlan.passdb_entry))}}
+  key_mgmt={{_iface.wlan.key_mgmt|default('WPA-PSK')}}
+  {% elif "WPA-EAP" in _iface.wlan.key_mgmt %}
+    {% if _iface.wlan.identity is defined %}
+  identity="{{_iface.wlan.identity}}"
+    {% endif %}
+    {% if _iface.wlan.anonymous_identity is defined %}
+  anonymous_identity="{{_iface.wlan.anonymous_identity}}"
+    {% endif %}
+  password="{{lookup(passdb, _iface.wlan_passdb_entry|default(_iface.wlan.passdb_entry))}}"
+  eap={{_iface.wlan.eap|default('PEAP')}}
+  key_mgmt={{_iface.wlan.key_mgmt}}
+    {% if _iface.wlan.phase1 is defined %}
+  phase1="{{_iface.wlan.phase1}}"
+    {% endif %}
+    {% if _iface.wlan.phase2 is defined %}
+  phase2="{{_iface.wlan.phase2}}"
+    {% endif %}
+  {% else %}
+  # Entry '{{_iface.wlan.key_mgmt}}' for key_mgmt not supported by this template.
+  {% endif %}
 
+  {% if _iface.wlan.bgscan is defined %}
+  bgscan="{{iface.wlan.bgscan}}"
+  {% endif %}
+  {% if _iface.wlan.scan_ssid is defined %}
+  scan_ssid={{_iface.wlan.scan_ssid|boolconv('int')}}
+  {% endif %}
+  {% if _iface.wlan.pairwise is defined %}
+  pairwise={{_iface.wlan.pairwise}}
+  {% endif %}
+  {% if _iface.wlan.group is defined %}
+  group={{_iface.wlan.group}}
+  {% endif %}
 }
   {% endif %}
 {% endfor %}
