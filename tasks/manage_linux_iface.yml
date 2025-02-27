@@ -95,6 +95,24 @@
     (_iface.value.manager is undefined or _iface.value.manager == "networkd") and
     _iface.value.type|default('') != "ipmi"
 
+- name: track networkd wait online devices ({{_iface.key}})
+  set_fact:
+    __networkd_wait_ifaces: "{{__networkd_wait_ifaces +  [_iface.key]}}"
+  when: >
+    ((network_manager is defined and network_manager == "networkd") or
+     (_iface.value.manager is defined and _iface.value.manager == "networkd")) and
+    (_iface.value.manager is undefined or _iface.value.manager == "networkd") and
+    _iface.value.wait_online is defined and _iface.value.wait_online == true
+
+- name: track networkd ignore online devices ({{_iface.key}})
+  set_fact:
+    __networkd_ignore_ifaces: "{{__networkd_ignore_ifaces +  [_iface.key]}}"
+  when: >
+    ((network_manager is defined and network_manager == "networkd") or
+     (_iface.value.manager is defined and _iface.value.manager == "networkd")) and
+    (_iface.value.manager is undefined or _iface.value.manager == "networkd") and
+    _iface.value.wait_online is defined and _iface.value.wait_online == false
+
 # netplan links
 - name: track network configurations (netplan, {{_iface.key}})
   set_fact:

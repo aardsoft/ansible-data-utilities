@@ -1,0 +1,12 @@
+#jinja2: lstrip_blocks: True
+# {{ ansible_managed }}
+{% if __networkd_wait_ifaces|length > 0 and __networkd_ignore_ifaces|length > 0 %}
+# NOTE: Both ignore and wait interfaces are defined in ansible, only using wait
+{% endif %}
+[Service]
+ExecStart=
+{% if __networkd_wait_ifaces|length > 0 %}
+ExecStart=/usr/lib/systemd/systemd-networkd-wait-online{% for __iface in __networkd_wait_ifaces %} -i {{__iface}}{% endfor %}
+{% else %}
+ExecStart=/usr/lib/systemd/systemd-networkd-wait-online{% for __iface in __networkd_ignore_ifaces %} --ignore {{__iface}}{% endfor %}
+{% endif %}

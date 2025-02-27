@@ -11,6 +11,19 @@
   tags:
     - access_setup
 
+- name: create networkd-wait-online service configuration directory
+  file:
+    path: /etc/systemd/system/systemd-networkd-wait-online.service.d
+    owner: root
+    group: root
+    mode: 0755
+    state: directory
+  when: >
+    (network_manager is defined and network_manager == "networkd") or
+    _iface_uses_networkd|default(false) == true
+  tags:
+    - access_setup
+
 - name: create networkd conf.d
   file:
     path: /etc/systemd/networkd.conf.d

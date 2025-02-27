@@ -4,6 +4,8 @@
     __networkd_links: []
     __networkd_netdevs: []
     __networkd_networks: []
+    __networkd_ignore_ifaces: []
+    __networkd_wait_ifaces: []
     __wpa_supplicant_ifaces: []
     __netplan_cfg: []
   tags:
@@ -42,6 +44,9 @@
       - "{{__networkd_links}}"
       - "{{__networkd_netdevs}}"
       - "{{__networkd_networks}}"
+      - "Wait online has the following configuration:"
+      - "Ignored: {{__networkd_ignore_ifaces}}"
+      - "Waiting: {{__networkd_wait_ifaces}}"
   when: >
     (network_manager is defined and network_manager == "networkd") or
     _iface_uses_networkd|default(false) == true
@@ -52,6 +57,23 @@
       - "{{__netplan_cfg}}"
   when: >
     network_manager is defined and network_manager == "netplan"
+
+- name: remove networkd-wait-online override
+  file:
+    path: /etc/systemd/system/systemd-networkd-wait-online.service.d/00_interfaces.conf
+    state: absent
+  when: >
+    __networkd_wait_ifaces|length == 0 and __networkd_ignore_ifaces|length == 0
+
+- name: create networkd-wait-online override
+  template:
+    src: 00_interfaces.conf.j2
+    dest: /etc/systemd/system/systemd-networkd-wait-online.service.d/00_interfaces.conf
+    owner: root
+    group: root
+    mode: 0644
+  when: >
+    __networkd_wait_ifaces|length > 0 or __networkd_ignore_ifaces|length > 0
 
 - name: copy cloud-init template
   template:
