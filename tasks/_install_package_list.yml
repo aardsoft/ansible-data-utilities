@@ -50,12 +50,6 @@
     ansible_os_family == "Suse" and
     ansible_version.full is version('2.10', '>=')
 
-- ansible.builtin.include_tasks: _install_packages_suse_legacy.yml
-  when: >
-    ansible_os_family == "Suse" and
-    ansible_version.full is version('2.9', '>=') and
-    ansible_version.full is version('2.10', '<')
-
 - name: Install packages for {{role_name}} (RedHat/dnf)
   ansible.builtin.dnf:
     name: "{{_packages}}"
