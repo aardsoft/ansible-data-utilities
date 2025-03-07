@@ -9,6 +9,8 @@
   stat:
     path: "/sbin/transactional-update"
   register: marker
+  when: >
+    ansible_system == 'Linux'
   tags:
     - base_config
     - access_setup
@@ -16,7 +18,9 @@
 - name: drop root .ssh (provisioning)
   ansible.builtin.set_fact:
     transactional_system: true
-  when: marker.stat.exists == True
+  when:  >
+    ansible_system == 'Linux' and
+    marker.stat.exists == True
   tags:
     - base_config
     - access_setup
