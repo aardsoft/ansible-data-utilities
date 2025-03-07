@@ -6,6 +6,10 @@
   when: role_packages is defined
 
 - ansible.builtin.set_fact:
+    _update_cache: "{{update_repo_cache}}"
+  when: update_repo_cache is defined
+
+- ansible.builtin.set_fact:
     _packages: "{{packages}}"
   when: packages is defined and role_packages is undefined
 
