@@ -16,7 +16,6 @@
   apt:
     deb: "{{_deb}}"
   with_items: "{{_packages}}"
-  when: bootstrap_debs is defined
   register: _bootstrap_deb_result
   loop_control:
     loop_var: _deb
@@ -24,7 +23,8 @@
   when: >
     ansible_os_family == "Debian" and
     _bootstrap is defined and
-    _bootstrap == true
+    _bootstrap == true and
+    _bootstrap_debs is defined
 
 - name: clean apt cache
   command: apt-get -y clean
