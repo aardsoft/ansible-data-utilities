@@ -44,3 +44,10 @@
   tags:
     - base_config
     - access_setup
+
+- ansible.builtin.set_fact:
+    local_bin: /usr/local/bin
+  when: local_bin is undefined
+  tags:
+    - base_config
+    - access_setup
