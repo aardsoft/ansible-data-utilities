@@ -1,6 +1,15 @@
-- name: Install packages for {{role_name}} (SuSE)
+- name: Install packages
   community.general.zypper:
     name: "{{_packages}}"
     state: present
+    update_cache: "{{_update_cache|default(no)}}"
   retries: "{{install_retries|default(3)}}"
+  register: _suse_install_status
   become: true
+
+- name: Reboot transactional system
+  ansible.builtin.reboot:
+    reboot_timeout: 600
+  when: >
+    _suse_install_status.changed == True and
+    transactional_system == True

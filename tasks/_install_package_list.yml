@@ -45,9 +45,11 @@
     _bootstrap == true and
     _bootstrap_deb_result is changed
 
-- ansible.builtin.include_tasks: _install_packages_suse.yml
+- name: Install packages for {{role_name}} (SuSE)
+  ansible.builtin.include_tasks: _install_packages_suse.yml
   when: >
-    ansible_os_family == "Suse" and
+    (ansible_os_family == "Suse" or
+     ansible_os_family == "openSUSE MicroOS") and
     ansible_version.full is version('2.10', '>=')
 
 - name: Install packages for {{role_name}} (RedHat/dnf)

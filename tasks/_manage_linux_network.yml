@@ -16,6 +16,8 @@
   tags:
     - access_setup
 
+# this intentionally is just Suse - MicroOS installs networkd via standard
+# packages to avoid a reboot
 - name: install networkd (opensuse, {{distribution_version}})
   zypper:
     name: "systemd-network"
