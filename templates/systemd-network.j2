@@ -83,9 +83,19 @@ DHCP=no
 {% endif %}
 
 {% if _iface.value.type is defined and _iface.value.type == "bridge" %}
+ {% if systemd_version|int <= 255 %}
 IPForward={{ _iface.value.forwarding|default("yes")|boolconv('yesno') }}
+ {% else %}
+IPv4Forwarding={{ _iface.value.forwarding|default("yes")|boolconv('yesno') }}
+IPv6Forwarding={{ _iface.value.forwarding|default("yes")|boolconv('yesno') }}
+ {% endif %}
 {% else %}
+ {% if systemd_version|int <= 255 %}
 IPForward={{ _iface.value.forwarding|default("no")|boolconv('yesno') }}
+ {% else %}
+IPv4Forwarding={{ _iface.value.forwarding|default("no")|boolconv('yesno') }}
+IPv6Forwarding={{ _iface.value.forwarding|default("no")|boolconv('yesno') }}
+ {% endif %}
 {% endif %}
 
 IPMasquerade={{ _iface.value.masquerade|default("no")|boolconv('yesno') }}
