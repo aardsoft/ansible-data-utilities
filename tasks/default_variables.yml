@@ -51,3 +51,25 @@
   tags:
     - base_config
     - access_setup
+
+- name: check systemd version
+  shell: systemctl --version|head -1|awk '{print $2}'
+  register: _systemctl_version
+  when: >
+    ansible_system == 'Linux' and
+    ansible_service_mgr == 'systemd'
+  changed_when: false
+  tags:
+    - base_config
+    - access_setup
+
+- name: register systemd version
+  set_fact:
+    systemd_version: "{{_systemctl_version.stdout}}"
+  when: >
+     ansible_system == 'Linux' and
+     ansible_service_mgr == 'systemd' and
+     _systemctl_version is defined
+  tags:
+    - base_config
+    - access_setup
