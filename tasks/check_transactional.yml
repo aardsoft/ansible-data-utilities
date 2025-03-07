@@ -1,0 +1,22 @@
+- name: set defaults for transactional variables
+  ansible.builtin.set_fact:
+    transactional_system: false
+  tags:
+    - base_config
+    - access_setup
+
+- name: check for transactional-update
+  stat:
+    path: "/sbin/transactional-update"
+  register: marker
+  tags:
+    - base_config
+    - access_setup
+
+- name: drop root .ssh (provisioning)
+  ansible.builtin.set_fact:
+    transactional_system: true
+  when: marker.stat.exists == True
+  tags:
+    - base_config
+    - access_setup
