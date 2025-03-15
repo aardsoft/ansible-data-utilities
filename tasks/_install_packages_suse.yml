@@ -13,3 +13,17 @@
   when: >
     _suse_install_status.changed == True and
     transactional_system == True
+
+# This is a workaround for https://github.com/ansible-collections/community.general/issues/9011
+# As we're rebooting if the install step changed anything we should be able to
+# query all our packages in the currently running snapshot if nothing had
+# changed - so we can abuse that to bail ouf it a package that should now
+# be there is not.
+- name: Check packages on transactional system
+  shell: "rpm -qi {{_package}}"
+  with_items: "{{_packages}}"
+  loop_control:
+    loop_var: _package
+  when: >
+    _suse_install_status.changed == False and
+    transactional_system == True
