@@ -45,6 +45,13 @@ DOCUMENTATION = '''
         ini:
           - key: ipmi_vlan
             section: site_yaml
+      default_vars_key:
+        description: key name containing the default variables
+        type: string
+        default: default_vars
+        ini:
+          - key: default_vars_key
+            section: site_yaml
       hosts_key:
         description: key name containing the host definitions
         type: string
@@ -191,6 +198,7 @@ class InventoryModule(BaseInventoryPlugin):
         parser['warnings']=[]
 
         valid_keys = {
+            "default_vars": self.get_option('default_vars_key'),
             "sites": "sites",
             "networks": self.get_option('networks_key'),
             "groups": self.get_option('groups_key'),
@@ -213,6 +221,9 @@ class InventoryModule(BaseInventoryPlugin):
             parser, parsed_data=self._sanitise_hosts_data(parsed_data, valid_keys, parser)
         else:
             raise AnsibleParserError("No hosts key (%s) found, can't continue." % valid_keys['hosts'])
+
+        if valid_keys['default_vars'] in keys:
+            parser=self._add_default_vars(parsed_data, valid_keys, parser)
 
         if valid_keys['groups'] in keys or self.get_option('dynamic_groups')==True:
             parser=self._add_groups(parsed_data, valid_keys, parser)
@@ -450,6 +461,17 @@ structures provided by this. '''
 
         return parser
 
+
+
+    def _add_default_vars(self, data, valid_keys, parser):
+        ''' Add default variables to inventory. '''
+
+        vars=data.get(valid_keys['default_vars'])
+        if vars != None:
+            for var in vars:
+                self.inventory.set_variable("all", var, vars[var])
+
+        return parser
 
     # this probably also should fill in additional port information
     def _validate_network_port(self, name, host, networks, phy, tp, parser):
