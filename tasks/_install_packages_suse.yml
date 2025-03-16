@@ -24,6 +24,7 @@
   with_items: "{{_packages}}"
   loop_control:
     loop_var: _package
+  changed_when: false
   when: >
     _suse_install_status.changed == False and
     transactional_system == True
