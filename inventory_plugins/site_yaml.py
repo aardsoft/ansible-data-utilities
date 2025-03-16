@@ -177,7 +177,7 @@ class InventoryModule(BaseInventoryPlugin):
                 parser['warnings'].append("Unknown key found in site data: " + key)
 
         if valid_keys['hosts'] in keys:
-            parser, parsed_data=self._sanitise_data(vanilla_data, valid_keys, parser)
+            parser, parsed_data=self._sanitise_hosts_data(vanilla_data, valid_keys, parser)
         else:
             raise AnsibleParserError("No hosts key (%s) found, can't continue." % valid_keys['hosts'])
 
@@ -203,7 +203,7 @@ class InventoryModule(BaseInventoryPlugin):
         parser,hosts=self._parse_hosts(parsed_data, parser, False, valid_keys)
 
 
-    def _sanitise_data(self, vanilla_data, k, parser):
+    def _sanitise_hosts_data(self, vanilla_data, k, parser):
         ''' This loops over the hosts structure to validate the data, and also
 resolves implicit keys for easier consumption by roles building on the data
 structures provided by this. '''
