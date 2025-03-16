@@ -59,6 +59,34 @@ DOCUMENTATION = '''
         ini:
           - key: groups_key
             section: site_yaml
+      networks_key:
+        description: key name containing the network definitions
+        type: string
+        default: networks
+        ini:
+          - key: networks_key
+            section: site_yaml
+      generate_dhcp_networks:
+        description: generate the legacy dhcp_networks variable out of networks
+        type: bool
+        default: True
+        ini:
+          - key: generate_dhcp_networks
+            section: site_yaml
+      generate_vlans:
+        description: generate the legacy vlans variable out of networks
+        type: bool
+        default: True
+        ini:
+          - key: generate_vlans
+            section: site_yaml
+      missing_vlan_id:
+        description: a fallback ID to set if vlan ID is not configured
+        type: int
+        default: 5000
+        ini:
+          - key: missing_vlan_id
+            section: site_yaml
       dynamic_groups:
         description: allow dynamically creating the groups list
         type: bool
@@ -164,7 +192,7 @@ class InventoryModule(BaseInventoryPlugin):
 
         valid_keys = {
             "sites": "sites",
-            "networks": "networks",
+            "networks": self.get_option('networks_key'),
             "groups": self.get_option('groups_key'),
             "hosts": self.get_option('hosts_key')
             }
@@ -176,8 +204,13 @@ class InventoryModule(BaseInventoryPlugin):
             else:
                 parser['warnings'].append("Unknown key found in site data: " + key)
 
+        if valid_keys['networks'] in keys:
+            parser, parsed_data=self._sanitise_networks_data(vanilla_data, valid_keys, parser)
+        else:
+            parsed_data = vanilla_data
+
         if valid_keys['hosts'] in keys:
-            parser, parsed_data=self._sanitise_hosts_data(vanilla_data, valid_keys, parser)
+            parser, parsed_data=self._sanitise_hosts_data(parsed_data, valid_keys, parser)
         else:
             raise AnsibleParserError("No hosts key (%s) found, can't continue." % valid_keys['hosts'])
 
@@ -355,6 +388,37 @@ structures provided by this. '''
 
         return parser, data
 
+    def _sanitise_networks_data(self, vanilla_data, k, parser):
+        ''' This loops over the networks structure to validate the data, and also
+resolves implicit keys for easier consumption by roles building on the data
+structures provided by this. '''
+
+        data=vanilla_data
+        debug=self.get_option('debug')
+
+        vlans={}
+
+        networks = data[k['networks']]
+        for network_name in networks:
+            network=networks[network_name]
+            if debug:
+                print("Network: %s" % network_name)
+
+            if network.get('vlan_id') != None:
+                vlans[network_name]=network.get('vlan_id')
+            else:
+                vlans[network_name]=self.get_option('missing_vlan_id')
+
+        if self.get_option('generate_dhcp_networks') == True:
+            self.inventory.set_variable("all", "dhcp_networks", data[k['networks']])
+
+        if self.get_option('generate_vlans') == True:
+            self.inventory.set_variable("all", "vlans", vlans)
+
+        if debug:
+            print("%s" % vlans)
+
+        return parser, data
 
     def _add_groups(self, data, valid_keys, parser):
         ''' Add groups and child groups to inventory. '''
