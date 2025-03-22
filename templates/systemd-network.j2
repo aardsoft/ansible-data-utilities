@@ -93,12 +93,20 @@ IPv6Forwarding={{ _iface.value.forwarding|default("yes")|boolconv('yesno') }}
  {% if systemd_version|int <= 255 %}
 IPForward={{ _iface.value.forwarding|default("no")|boolconv('yesno') }}
  {% else %}
+  {% if _iface.value.masquerade|default("no") == "both" or _iface.value.masquerade|default("no") == "ipv4" %}
+IPv4Forwarding={{ _iface.value.forwarding|default("yes")|boolconv('yesno') }}
+  {% else %}
 IPv4Forwarding={{ _iface.value.forwarding|default("no")|boolconv('yesno') }}
+  {% endif %}
+  {% if _iface.value.masquerade|default("no") == "both" or _iface.value.masquerade|default("no") == "ipv6" %}
+IPv6Forwarding={{ _iface.value.forwarding|default("yes")|boolconv('yesno') }}
+  {% else %}
 IPv6Forwarding={{ _iface.value.forwarding|default("no")|boolconv('yesno') }}
+  {% endif %}
  {% endif %}
 {% endif %}
 
-IPMasquerade={{ _iface.value.masquerade|default("no")|boolconv('yesno') }}
+IPMasquerade={{ _iface.value.masquerade|default("no") }}
 
 #BindCarrier=
 {% if _iface.value.ipv6 is defined %}
