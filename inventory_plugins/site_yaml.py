@@ -492,6 +492,13 @@ structures provided by this. '''
         if network.get('bond') != None:
             phy['bonds'].add(network.get('bond'))
 
+        if network.get('vlan') != None and network.get('network') != None:
+            parser['errors'].append("%s: interface %s has both vlan and network tags, drop one" % (host, name))
+        elif network.get('vlan') != None:
+            network['network'] = network['vlan']
+        elif network.get('network') != None:
+            network['vlan'] = network['network']
+
         # site parser makes sure that specially named interfaces (ilo/ipmi)
         # without type get the ipmi type added
         if network.get('type') == "ipmi":
