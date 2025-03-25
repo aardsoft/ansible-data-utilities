@@ -1,0 +1,4 @@
+- name: store script contents
+  set_fact:
+    bootstrap_script: "{{lookup('ansible.builtin.file', 'bootstrap-python.sh')|b64encode}}"
+  delegate_to: localhost

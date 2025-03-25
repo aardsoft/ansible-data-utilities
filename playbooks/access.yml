@@ -15,8 +15,33 @@
 # - http://grokbase.com/t/gg/ansible-project/159281vzpx/is-su-exe-become-exe-broken-in-v2
 
 - hosts: all
+  name: Check bootstrap arguments
+  gather_facts: false
   tasks:
     - fail: msg='Limit scope using --tags "access_setup"'
+
+- hosts: all
+  name: Bootstrap python
+  gather_facts: false
+  tasks:
+    - name: register script
+      include_role:
+        name: data-utilities
+        tasks_from: pack_python_bootstrap
+    - name: dump script contents
+      debug:
+        msg: "{{bootstrap_script}}"
+    - name: bootstrap python, if missing
+      raw: "echo {{bootstrap_script}} | base64 -d > /tmp/python-installer; bash /tmp/python-installer"
+      args:
+        executable: /bin/bash
+      register: output
+      changed_when: output.stdout != ""
+      ignore_errors: true
+    - name: Gathering Facts
+      setup:
+  tags:
+    - access_setup
 
 #- hosts: all
 #  become: True
@@ -27,5 +52,6 @@
 #    - access_setup
 
 - hosts: all
+  name: Bootstrap node
   roles:
     - basic-host
