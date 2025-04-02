@@ -29,6 +29,13 @@ DOCUMENTATION = '''
         ini:
           - key: allowed_duplicate_ips
             section: site_yaml
+      dump_file:
+        description: a file to dump parsed inventory to
+        type: string
+        default: ""
+        ini:
+          - key: dump_file
+            section: site_yaml
       site_files:
         description: a list of valid filenames for the site inventory
         type: list
@@ -152,6 +159,7 @@ DOCUMENTATION = '''
 
 import os
 import re
+import json
 
 from ansible.errors import AnsibleError, AnsibleParserError
 from ansible.module_utils.common._collections_compat import MutableMapping
@@ -221,6 +229,10 @@ class InventoryModule(BaseInventoryPlugin):
             parser, parsed_data=self._sanitise_hosts_data(parsed_data, valid_keys, parser)
         else:
             raise AnsibleParserError("No hosts key (%s) found, can't continue." % valid_keys['hosts'])
+
+        if self.get_option('dump_file') != "":
+            with open(self.get_option('dump_file'), "w") as inventoryDump:
+                inventoryDump.write(json.dumps(parsed_data, indent=4, sort_keys = True))
 
         if valid_keys['default_vars'] in keys:
             parser=self._add_default_vars(parsed_data, valid_keys, parser)
