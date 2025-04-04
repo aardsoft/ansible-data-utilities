@@ -1,0 +1,34 @@
+- name: print information and setup environment
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  tasks:
+    - debug:
+        msg:
+          - "Ansible version: {{ansible_version.full}}"
+          - "Virtualization: {{ansible_virtualization_role}}"
+          - "Virtualization type: {{ansible_virtualization_type}}"
+          - "Home: {{lookup('ansible.builtin.env', 'HOME')}}"
+    - name: clone ci-demo
+      ansible.builtin.git:
+        repo: https://github.com/aardsoft/ci-demo.git
+        dest: ../tests/ci-demo/netinstall
+    - name: check netinstall inventory
+      shell:
+        cmd: ansible --list-hosts all
+        chdir: ../tests
+      environment:
+        ANSIBLE_CONFIG: ansible_netinstall.cfg
+
+- name: check for changed test files
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  tasks:
+    - ansible.builtin.shell: |
+        git status --porcelain|grep test_results
+      register: git_status
+      ignore_errors: true
+    - ansible.builtin.fail:
+        msg: "Changes to test results found, fix config generation or commit changes"
+      when: git_status.stdout != ""

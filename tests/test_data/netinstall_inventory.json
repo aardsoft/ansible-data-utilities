@@ -1,0 +1,52 @@
+{
+    "default_vars": {
+        "dns_domain": "ci-demo.aardsoft.fi"
+    },
+    "hosts": {
+        "microgw": {
+            "host_vars": {
+                "ansible_host": "127.0.0.1",
+                "ansible_port": 60322,
+                "debug_variables": true,
+                "dhcp_boot": true,
+                "dhcpd": {
+                    "chroot": false
+                }
+            },
+            "networks": {
+                "enp0s5": {
+                    "cfg_prefix": "10",
+                    "masquerade": "both",
+                    "static": false
+                },
+                "enp0s6": {
+                    "cfg_prefix": "10",
+                    "ipv4": "10.11.12.1/24",
+                    "masquerade": "both",
+                    "static": true
+                }
+            },
+            "rack_mounted": 0,
+            "type": "notebook"
+        }
+    },
+    "networks": {
+        "demo": {
+            "subnets": {
+                "10.11.12.0/24": {
+                    "boot_options": {
+                        "pxe": [
+                            "next-server 10.11.12.1"
+                        ]
+                    },
+                    "options": [
+                        "range 10.11.12.150 10.11.12.200",
+                        "option routers 10.11.12.1",
+                        "option ntp-servers 10.11.12.1",
+                        "option domain-name-servers 10.11.12.1"
+                    ]
+                }
+            }
+        }
+    }
+}

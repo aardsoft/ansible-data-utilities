@@ -1,0 +1,40 @@
+name: run tests
+
+on:
+  push:
+    branches: [ master ]
+
+  workflow_dispatch:
+
+jobs:
+  tests:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04]
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          persist-credentials: false
+
+      - name: install python packages
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install python3-virtualenv
+
+      - name: print run information
+        run: |
+          echo "Running on ${{ matrix.os }}"
+          echo "Python: "
+          python3 --version
+
+      - name: run tests
+        env:
+          ansible_version: 10.5.0
+        run: |
+          python3 -m virtualenv ansible-$ansible_version --system-site-packages
+          source ansible-$ansible_version/bin/activate
+          python3 -m pip install ansible==$ansible_version netaddr
+          ansible-playbook playbooks/test.yml
