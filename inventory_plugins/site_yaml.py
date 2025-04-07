@@ -45,6 +45,13 @@ DOCUMENTATION = '''
         ini:
           - key: site_files
             section: site_yaml
+      sited_name:
+        description: name of the site.d directory for extra files
+        type: string
+        default: site.d
+        ini:
+          - key: sited_name
+            section: site_yaml
       ipmi_vlan:
         description: name of the VLAN containing IPMI interfaces
         type: string
@@ -184,6 +191,29 @@ class InventoryModule(BaseInventoryPlugin):
                 valid = True
         return valid
 
+    def load_sited(self, parser, section_key, path, data):
+        ''' add files from site.d structure to inventory '''
+
+        key_path = path+"/"+section_key
+        if os.path.isdir(key_path):
+
+            for file in os.listdir(key_path):
+                if file.endswith(".yaml") or file.endswith(".yml"):
+                    try:
+                        file_data = self.loader.load_from_file(key_path+"/"+file, cache=False)
+                    except Exception as e:
+                        raise AnsibleParserError(e)
+
+                    for key in file_data:
+                        if key in data[section_key]:
+                            parser['errors'].append("Duplicate host key '%s' added from file %s" % (key, file))
+                        else:
+                            data[section_key][key] = file_data[key]
+        else:
+            parser['warnings'].append("No site.d found for %s" % section_key)
+
+        return parser, data
+
 
     def parse(self, inventory, loader, path, cache=True):
         ''' parses the inventory file '''
@@ -217,6 +247,7 @@ class InventoryModule(BaseInventoryPlugin):
         for key in vanilla_data:
             if key in valid_keys.values():
                 keys.append(key)
+                parser, vanilla_data = self.load_sited(parser, key, os.path.dirname(path)+"/"+self.get_option('sited_name'), vanilla_data)
             else:
                 parser['warnings'].append("Unknown key found in site data: " + key)
 
