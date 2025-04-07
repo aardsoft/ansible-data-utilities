@@ -154,6 +154,13 @@ DOCUMENTATION = '''
         ini:
           - key: vlan_mode
             section: site_yaml
+      require_valid_ports:
+        description: report invalid network ports either as warning or error
+        type: bool
+        default: False
+        ini:
+          - key: require_valid_ports
+            section: site_yaml
       warnings_are_errors:
         description: treat warnings as fatal errors
         type: bool
@@ -277,12 +284,15 @@ class InventoryModule(BaseInventoryPlugin):
         # data is good to make sure playbooks don't run on bad data
         parser,hosts=self._parse_hosts(parsed_data, parser, True, valid_keys)
 
-        if self.get_option('warnings_are_errors')==True and len(parser['warnings'])>0:
+        if len(parser['warnings'])>0:
+            print("\n\nWarnings found:")
             # AnsibleParserError strips newlines, so print warnings separately to make them readable
-            print("\n\n%s\n" % "\n".join(parser['warnings']))
-            raise AnsibleParserError("Above warnings found parsing site data, and treating warnings as errors")
+            print("\n%s\n" % "\n".join(parser['warnings']))
+            if self.get_option('warnings_are_errors')==True:
+                raise AnsibleParserError("Above warnings found parsing site data, and treating warnings as errors")
 
         if self.get_option('ignore_errors')==False and len(parser['errors'])>0:
+            print("\n\nErrors found:")
             # AnsibleParserError strips newlines, so print warnings separately to make them readable
             print("\n\n%s\n" % "\n".join(parser['errors']))
             raise AnsibleParserError("Above errors found parsing site data")
@@ -557,7 +567,10 @@ structures provided by this. '''
             #        print("shared port on %s" % name)
 
             if network.get('type') == None and network.get('manager') != "wg":
-                print("invalid port on %s for iface %s" % (host, name))
+                if self.get_option('require_valid_ports') == True:
+                    parser['errors'].append("invalid port on %s for iface %s" % (host, name))
+                else:
+                    parser['warnings'].append("invalid port on %s for iface %s" % (host, name))
             else:
                 if network.get('type') == "vlan":
                     vlan_mode=self.get_option('vlan_mode')
