@@ -161,6 +161,13 @@ DOCUMENTATION = '''
         ini:
           - key: require_valid_ports
             section: site_yaml
+      mandatory_field_marker:
+        description: marker for mandatory template fields
+        type: string
+        default: "[[!]]"
+        ini:
+          - key: mandatory_field_marker
+            section: site_yaml
       warnings_are_errors:
         description: treat warnings as fatal errors
         type: bool
@@ -197,6 +204,70 @@ class InventoryModule(BaseInventoryPlugin):
             if file_name in self.get_option('site_files'):
                 valid = True
         return valid
+
+    def apply_template(self, parser, section_key, item_key, data):
+        ''' apply a template to an item '''
+
+        template_key = section_key+'_templates'
+
+        if template_key in data:
+            templates = data[template_key]
+
+            if templates == None:
+                parser['errors'].append("%s template section is invalid" % section_key)
+                return parser, data
+
+            template = data[section_key][item_key]['template']
+
+            if template in templates:
+                self.merge_template_elements(parser, data[section_key][item_key], templates[template], item_key)
+            else:
+                parser['errors'].append("%s template '%s' not found" % (section_key, template))
+            # check if the template exists, throw error if not. otherwise, apply template recursively
+        else:
+            parser['errors'].append("No templates found for '%s' section" % section_key)
+
+        return parser, data
+
+
+    def merge_template_elements(self, parser, target, source, item):
+        ''' iterate the source template, and set all keys not yet present on
+        target side.
+
+        Merge strategy is:
+
+        - if the element is a dict for both source and target, merge recursively
+        - if the elemement exists in both target and source, but is a dict in
+          only one side, print a warning.
+        - if the element does not exist in target, add
+        - if an element is marked as mandatory, and does not exist in target
+          record an error
+        '''
+
+        marker = self.get_option('mandatory_field_marker')
+
+        for key in source:
+            if source[key] == marker and key not in target:
+                parser['errors'].append("Mandatory template key '%s' missing from %s " % (key, item))
+            else:
+                # having it initialised to an empty dict if it should be a dict
+                # makes things simpler later on
+                if (isinstance(source[key], dict) and
+                    ((key in target and target[key] == None) or
+                     key not in target)):
+                    target[key] = {}
+
+                # refactor this bit, probably first we'd need to do nonetype check
+                if key in target and isinstance(target[key], dict) and isinstance(source[key], dict):
+                    self.merge_template_elements(parser, target[key], source[key], item)
+                elif key in target and isinstance(source[key], dict):
+                    parser['warnings'].append("Key %s is present, but not a dict. Skipping, but this may mask mandatory key checks." % key)
+                elif key not in target and isinstance(source[key], dict):
+                    target[key] = {}
+                    self.merge_template_elements(parser, target[key], source[key], item)
+                elif key not in target:
+                    target[key] = source[key]
+
 
     def load_sited(self, parser, section_key, path, data):
         ''' add files from site.d structure to inventory '''
@@ -247,7 +318,10 @@ class InventoryModule(BaseInventoryPlugin):
             "sites": "sites",
             "networks": self.get_option('networks_key'),
             "groups": self.get_option('groups_key'),
-            "hosts": self.get_option('hosts_key')
+            "hosts": self.get_option('hosts_key'),
+            "networks_templates": self.get_option('networks_key')+"_templates",
+            "groups_templates": self.get_option('groups_key')+"_templates",
+            "hosts_templates": self.get_option('hosts_key')+"_templates"
             }
 
         keys=[]
@@ -314,8 +388,14 @@ structures provided by this. '''
 
         if isinstance(data, (MutableMapping, NoneType)):
             hosts = data[k['hosts']]
+
             for host in hosts:
                 system=hosts[host]
+
+                # apply a template, if needed, before doing further processing
+                if 'template' in system:
+                    self.apply_template(parser, k['hosts'], host, data)
+
                 enforced_types={"server", "ilo", "ipmi", "workstation", "notebook"}
 
                 uuid=system.get('uuid')
@@ -465,6 +545,12 @@ structures provided by this. '''
         networks = data[k['networks']]
         for network_name in networks:
             network=networks[network_name]
+
+            # due to subnet key relatively high up network templates are probably
+            # less useful than host templates. Disable for now.
+            #if 'template' in network:
+            #    self.apply_template(parser, k['networks'], network, data)
+
             if debug:
                 print("Network: %s" % network_name)
 
