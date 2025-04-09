@@ -103,7 +103,7 @@ DOCUMENTATION = '''
             section: site_yaml
       missing_vlan_id:
         description: a fallback ID to set if vlan ID is not configured
-        type: int
+        type: string
         default: 5000
         ini:
           - key: missing_vlan_id
@@ -207,6 +207,10 @@ class InventoryModule(BaseInventoryPlugin):
 
     def apply_template(self, parser, section_key, item_key, data):
         ''' apply a template to an item '''
+
+        debug=self.get_option('debug')
+        if debug:
+            print("Applying template for '%s' in section '%s'" % (item_key, section_key))
 
         template_key = section_key+'_templates'
 
@@ -555,7 +559,7 @@ structures provided by this. '''
                 print("Network: %s" % network_name)
 
             if network.get('vlan_id') != None:
-                vlans[network_name]=network.get('vlan_id')
+                vlans[network_name]=str(network.get('vlan_id'))
             else:
                 vlans[network_name]=self.get_option('missing_vlan_id')
 
@@ -564,9 +568,10 @@ structures provided by this. '''
 
         if self.get_option('generate_vlans') == True:
             self.inventory.set_variable("all", "vlans", vlans)
+            data['vlans'] = vlans
 
         if debug:
-            print("%s" % vlans)
+            print("vlans: %s" % vlans)
 
         return parser, data
 
