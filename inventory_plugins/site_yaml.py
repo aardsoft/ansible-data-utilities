@@ -275,8 +275,16 @@ class InventoryModule(BaseInventoryPlugin):
 
     def load_sited(self, parser, section_key, path, data):
         ''' add files from site.d structure to inventory '''
+        debug=self.get_option('debug')
 
         key_path = path+"/"+section_key
+
+        # if all items of a section come from site.d site.yml would still require
+        # the section key - which would resolve to null. Change it to an empty
+        # dict so the logic expecting a dict doesn't break
+        if data[section_key] == None:
+            data[section_key] = {}
+
         if os.path.isdir(key_path):
 
             for file in os.listdir(key_path):
@@ -291,6 +299,8 @@ class InventoryModule(BaseInventoryPlugin):
                             parser['errors'].append("Duplicate host key '%s' added from file %s" % (key, file))
                         else:
                             data[section_key][key] = file_data[key]
+                            if debug:
+                                print("Adding %s in section %s from site.d" % (key, section_key))
         else:
             parser['warnings'].append("No site.d found for %s" % section_key)
 
