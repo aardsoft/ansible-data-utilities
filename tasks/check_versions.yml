@@ -27,7 +27,7 @@
     - access_setup
 
 - ansible.builtin.set_fact:
-    data_utilities_version: 0.10
+    data_utilities_version: 0.11
   tags:
     - base_config
     - access_setup
