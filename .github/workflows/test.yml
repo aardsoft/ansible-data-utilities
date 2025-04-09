@@ -3,8 +3,8 @@ name: run tests
 on:
   push:
     branches: [ master ]
-
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   tests:
@@ -12,12 +12,21 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04]
+        os: [ubuntu-24.04]
+        ansible:
+          - 9.13.0
+          - 10.7.0
+          - 11.4.0
 
     steps:
       - uses: actions/checkout@v3
         with:
           persist-credentials: false
+
+      - name: install Act dependencies
+        if: ${{ env.ACT }}
+        run: |
+          apt-get update && apt-get install sudo -y
 
       - name: install python packages
         run: |
@@ -31,10 +40,8 @@ jobs:
           python3 --version
 
       - name: run tests
-        env:
-          ansible_version: 10.5.0
         run: |
-          python3 -m virtualenv ansible-$ansible_version --system-site-packages
-          source ansible-$ansible_version/bin/activate
-          python3 -m pip install ansible==$ansible_version netaddr
+          python3 -m virtualenv ansible-${{ matrix.ansible }} --system-site-packages
+          source ansible-${{ matrix.ansible }}/bin/activate
+          python3 -m pip install ansible==${{ matrix.ansible }} netaddr
           ansible-playbook playbooks/test.yml
