@@ -296,7 +296,7 @@ class InventoryModule(BaseInventoryPlugin):
 
                     for key in file_data:
                         if key in data[section_key]:
-                            parser['errors'].append("Duplicate host key '%s' added from file %s" % (key, file))
+                            parser['errors'].append("Duplicate item key '%s' added from file %s" % (key, file))
                         else:
                             data[section_key][key] = file_data[key]
                             if debug:
