@@ -104,7 +104,7 @@ DOCUMENTATION = '''
       missing_vlan_id:
         description: a fallback ID to set if vlan ID is not configured
         type: string
-        default: 5000
+        default: "5000"
         ini:
           - key: missing_vlan_id
             section: site_yaml
