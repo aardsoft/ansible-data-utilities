@@ -10,6 +10,7 @@
 - name: Reboot transactional system
   ansible.builtin.reboot:
     reboot_timeout: 600
+  throttle: "{{reboot_throttle|default(1)}}"
   when: >
     _suse_install_status.changed == True and
     transactional_system == True
