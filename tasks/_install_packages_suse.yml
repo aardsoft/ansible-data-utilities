@@ -2,7 +2,7 @@
   community.general.zypper:
     name: "{{_packages}}"
     state: present
-    update_cache: "{{_update_cache|default(no)}}"
+    update_cache: "{{_update_cache|default('no')}}"
   retries: "{{install_retries|default(3)}}"
   register: _suse_install_status
   become: true
