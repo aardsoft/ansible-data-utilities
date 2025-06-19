@@ -73,3 +73,24 @@
   tags:
     - base_config
     - access_setup
+
+- name: check python version
+  shell: >
+    python3 --version | awk '{print $2}' | awk -F '.' '{print $1$2}'
+  register: _python_version
+  when: >
+    ansible_system == 'Linux'
+  changed_when: false
+  tags:
+    - base_config
+    - access_setup
+
+- name: register python version
+  set_fact:
+    python_version: "{{_python_version.stdout}}"
+  when: >
+     ansible_system == 'Linux' and
+     _python_version is defined
+  tags:
+    - base_config
+    - access_setup
