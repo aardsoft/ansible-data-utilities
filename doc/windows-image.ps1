@@ -59,6 +59,13 @@ if (-not (Test-Path variable:oscdimg)){
     $oscdimg = "${Env:ProgramFiles(x86)}\Windows Kits\10\Assessment and Deployment Kit\Deployment Tools\amd64\Oscdimg\oscdimg.exe"
 }
 
+if (-not (Test-Path variable:extra_driver_dirs)) {
+    $extra_driver_dirs = @()
+} elseif (-not ($extra_driver_dirs -is [array])) {
+    Write-Warning "Variable 'extra_driver_dirs' exists but is not an array. Reinitializing to empty array."
+    $extra_driver_dirs = @()
+}
+
 if (Test-Path $iso_path){
     if(!(get-DiskImage -ImagePath $iso_path).Attached){
         Mount-DiskImage -ImagePath $iso_path
@@ -181,6 +188,16 @@ if (Test-Path variable:virtio_iso_path){
         }
     } else {
         Write-Warning "Disk image ${virtio_iso_path} not found, skipping driver injection"
+    }
+}
+
+foreach ($dir in $extra_driver_dirs) {
+    if (Test-Path $dir) {
+        Write-Status "Injecting drivers from $dir"
+        Add-WindowsDriver -Path $boot_mnt -Driver $dir -Recurse
+        Add-WindowsDriver -Path $install_mnt -Driver $dir -Recurse
+    } else {
+        Write-Warning "Directory $dir does not exist, skipping"
     }
 }
 
