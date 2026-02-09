@@ -71,6 +71,10 @@ for switch in $_switches; do
     echo "Pulling from $switch ($_type) at $_user@$_host to $_config_dir/$_config"
 
     case "$_type" in
+        "cisco")
+            _ssh_args="$_switch_ssh_args"
+            sshpass -e scp -O $_ssh_args $_user@$_host:startup-config "$_config_dir"/"$_config"
+            ;;
         "dell")
             _ssh_args="$_switch_ssh_args"
             sshpass -e scp -O $_ssh_args $_user@$_host:startup-config "$_config_dir"/"$_config"
