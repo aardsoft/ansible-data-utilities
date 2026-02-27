@@ -26,8 +26,9 @@
     - base_config
     - access_setup
 
+# TODO, we should eventually tie that to auto-increase on tagging
 - ansible.builtin.set_fact:
-    data_utilities_version: 0.11
+    data_utilities_version: 0.13
   tags:
     - base_config
     - access_setup
