@@ -1,0 +1,72 @@
+# Configure transactional-update and rebootmgr on transactional systems
+# based on openSUSE MicroOS. This also should work for Leap Micro.
+#
+# The basic-host role includes this snippet when a transactional system
+# has been detected, allowing easy configuration via host or group vars.
+#
+# This can be configured through the transactional_update variable, which
+# supports the following keys:
+#
+#   reboot_method:     kured | rebootmgr (default: rebootmgr)
+#   reboot_strategy:   off | best-effort | maint-window (default: best-effort)
+#                      only relevant when reboot_method: rebootmgr
+#   window_start:      maintenance window start, e.g. "Thu 03:30"
+#                      only relevant when reboot_strategy: maint-window
+#   window_duration:   maintenance window duration, e.g. "1h30m"
+#                      only relevant when reboot_strategy: maint-window
+#
+# This also is used from the k3s role. For those set reboot_method: kured in
+# the k3s group_vars. kured will then be installed into the cluster, and
+# coordinate rolling reboots across the cluster, while disabling rebootmgr.
+
+- name: configure transactional-update
+  ansible.builtin.template:
+    src: transactional-update.conf.j2
+    dest: /etc/transactional-update.conf
+    mode: '0644'
+    owner: root
+    group: root
+
+- name: create /etc/rebootmgr directory
+  ansible.builtin.file:
+    path: /etc/rebootmgr
+    state: directory
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: configure rebootmgr
+  ansible.builtin.template:
+    src: rebootmgr.conf.j2
+    dest: /etc/rebootmgr/rebootmgr.conf
+    mode: '0644'
+    owner: root
+    group: root
+  register: _rebootmgr_conf
+
+- name: restart rebootmgr after config change
+  ansible.builtin.systemd:
+    name: rebootmgr
+    state: restarted
+  when: >
+    _rebootmgr_conf.changed and
+    transactional_update.reboot_method|default('rebootmgr') == 'rebootmgr'
+  ignore_errors: true
+
+- name: disable and stop rebootmgr (kured manages reboots)
+  ansible.builtin.systemd:
+    name: rebootmgr
+    enabled: false
+    state: stopped
+  when: >
+    transactional_update.reboot_method|default('rebootmgr') == 'kured'
+  ignore_errors: true
+
+- name: enable and start rebootmgr
+  ansible.builtin.systemd:
+    name: rebootmgr
+    enabled: true
+    state: started
+  when: >
+    transactional_update.reboot_method|default('rebootmgr') == 'rebootmgr'
+  ignore_errors: true

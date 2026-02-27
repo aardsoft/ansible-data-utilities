@@ -1,0 +1,9 @@
+# Managed by Ansible
+#
+# Valid values for REBOOT_METHOD:
+#   auto        - reboot according to rebootmgr settings
+#   rebootmgr   - use rebootmgr
+#   systemd     - use systemctl reboot
+#   kured       - create /var/run/reboot-required for kured
+#   none        - no automatic reboot
+REBOOT_METHOD={{ transactional_update.reboot_method|default('rebootmgr') }}

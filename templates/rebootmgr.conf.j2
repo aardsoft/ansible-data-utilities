@@ -1,0 +1,12 @@
+# Managed by Ansible
+[rebootmgr]
+{% if transactional_update.reboot_method|default('rebootmgr') == 'kured' %}
+# kured handles reboots; rebootmgr is disabled
+reboot-strategy=off
+{% else %}
+reboot-strategy={{ transactional_update.reboot_strategy|default('best-effort') }}
+{% if transactional_update.reboot_strategy|default('best-effort') == 'maint-window' %}
+maintenance-window-start={{ transactional_update.window_start|default('03:30') }}
+maintenance-window-duration={{ transactional_update.window_duration|default('1h') }}
+{% endif %}
+{% endif %}
