@@ -17,7 +17,8 @@
 #
 # This also is used from the k3s role. For those set reboot_method: kured in
 # the k3s group_vars. kured will then be installed into the cluster, and
-# coordinate rolling reboots across the cluster, while disabling rebootmgr.
+# coordinate rolling reboots. kured watches /run/reboot-needed (created by
+# transactional-update), while rebootmgr is disabled.
 
 - name: configure transactional-update
   ansible.builtin.template:
