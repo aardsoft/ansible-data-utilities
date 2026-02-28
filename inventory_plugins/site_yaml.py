@@ -176,11 +176,25 @@ DOCUMENTATION = '''
         description: don't die on errors. This is useful for handling errors in playbooks.
         type: bool
         default: False
+      roles_path:
+        description:
+          - List of directories to search for Ansible roles when resolving pod
+            snippets (C(k3s.snippets) in k3s-pod host definitions).
+          - When unset, falls back to the Ansible default roles path
+            (C(DEFAULT_ROLES_PATH) from ansible.cfg / C(ANSIBLE_ROLES_PATH)).
+        type: list
+        default: []
+        ini:
+          - key: roles_path
+            section: site_yaml
 '''
 
+import importlib.util
 import os
 import re
 import json
+
+import ansible.constants as C
 
 from ansible.errors import AnsibleError, AnsibleParserError
 from ansible.module_utils.common._collections_compat import MutableMapping
@@ -312,6 +326,7 @@ class InventoryModule(BaseInventoryPlugin):
 
         super(InventoryModule, self).parse(inventory, loader, path)
         self.set_options()
+        self._discover_extensions()
 
         try:
             vanilla_data = self.loader.load_from_file(path, cache=False)
@@ -353,6 +368,7 @@ class InventoryModule(BaseInventoryPlugin):
 
         if valid_keys['hosts'] in keys:
             parser, parsed_data=self._sanitise_hosts_data(parsed_data, valid_keys, parser)
+            parser, parsed_data=self._preprocess_hosts(parsed_data, valid_keys, parser)
         else:
             raise AnsibleParserError("No hosts key (%s) found, can't continue." % valid_keys['hosts'])
 
@@ -403,14 +419,17 @@ structures provided by this. '''
         if isinstance(data, (MutableMapping, NoneType)):
             hosts = data[k['hosts']]
 
+            enforced_types = {"server", "ilo", "ipmi", "workstation", "notebook"}
+            for type_name, ext in self._extension_registry.items():
+                if getattr(ext, 'ENFORCED', False):
+                    enforced_types.add(type_name)
+
             for host in hosts:
                 system=hosts[host]
 
                 # apply a template, if needed, before doing further processing
                 if 'template' in system:
                     self.apply_template(parser, k['hosts'], host, data)
-
-                enforced_types={"server", "ilo", "ipmi", "workstation", "notebook"}
 
                 uuid=system.get('uuid')
                 if uuid != None:
@@ -495,11 +514,11 @@ structures provided by this. '''
                     parser['errors'].append("%s is missing type key" % host)
                     continue
                 elif system.get('type') not in enforced_types:
-                    # this is a somwhat ugly workaround for now - but is the
-                    # same level of validation we got from the old script
-                    # instead of skipping system types this should be set
-                    # by flags in pre-defined system types
-                    #print("skipping system %s" % host)
+                    host_type = system.get('type')
+                    if host_type in self._extension_registry:
+                        ext = self._extension_registry[host_type]
+                        if hasattr(ext, 'sanitise_host'):
+                            ext.sanitise_host(self, host, system, data, k, parser)
                     continue
                 else:
                     # check type specific keys
@@ -540,6 +559,13 @@ structures provided by this. '''
                         # check ilo/ipmi interfaces
 
                     # compare interface lists
+
+                # call extension sanitise_host for additional type-specific checks
+                host_type = system.get('type')
+                if host_type in self._extension_registry:
+                    ext = self._extension_registry[host_type]
+                    if hasattr(ext, 'sanitise_host'):
+                        ext.sanitise_host(self, host, system, data, k, parser)
 
         else:
             self.display.warning("Skipping '%s' as this is not a valid host definition" % host)
@@ -708,18 +734,107 @@ structures provided by this. '''
                 # also ignore dummy and wg
         return phy, tp, parser
 
+    def _find_role_path(self, role_name):
+        ''' Return the filesystem path of a named role, or None if not found. '''
+        configured = self.get_option('roles_path')
+        search_paths = list(configured) if configured else list(C.DEFAULT_ROLES_PATH)
+        for search_path in search_paths:
+            role_path = os.path.join(os.path.expanduser(search_path), role_name)
+            if os.path.isdir(role_path):
+                return role_path
+        return None
+
+    def _discover_extensions(self):
+        ''' Scan all roles paths for plugins/inventory_extension.py files, load
+        them, and register each extension for the host types it declares in
+        HANDLES_TYPES.  Only one extension per type is allowed; if a duplicate
+        is found a warning is emitted and the second one is ignored. '''
+
+        self._extension_registry = {}
+
+        configured = self.get_option('roles_path')
+        search_paths = list(configured) if configured else list(C.DEFAULT_ROLES_PATH)
+
+        for roles_dir in search_paths:
+            roles_dir = os.path.expanduser(roles_dir)
+            if not os.path.isdir(roles_dir):
+                continue
+            for role_name in sorted(os.listdir(roles_dir)):
+                ext_path = os.path.join(
+                    roles_dir, role_name, 'plugins', 'inventory_extension.py')
+                if not os.path.isfile(ext_path):
+                    continue
+                try:
+                    spec = importlib.util.spec_from_file_location(
+                        'inventory_extension_%s' % role_name, ext_path)
+                    module = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(module)
+                except Exception as e:
+                    self.display.warning(
+                        "Failed to load inventory extension from '%s': %s"
+                        % (ext_path, e))
+                    continue
+
+                handles = getattr(module, 'HANDLES_TYPES', [])
+                ext_class = getattr(module, 'InventoryExtension', None)
+                if not ext_class or not handles:
+                    continue
+
+                try:
+                    ext_instance = ext_class()
+                except Exception as e:
+                    self.display.warning(
+                        "Failed to instantiate InventoryExtension from '%s': %s"
+                        % (ext_path, e))
+                    continue
+
+                for type_name in handles:
+                    if type_name in self._extension_registry:
+                        self.display.warning(
+                            "Duplicate inventory extension for type '%s' "
+                            "found in role '%s', ignoring (already registered)"
+                            % (type_name, role_name))
+                    else:
+                        self._extension_registry[type_name] = ext_instance
+
+    def _preprocess_hosts(self, data, valid_keys, parser):
+        ''' For each host whose type has a registered extension, call the
+        extension's preprocess_host() method.  This runs after sanitisation
+        and before _parse_hosts, so extensions can modify the host definition
+        in place (e.g. merging pod snippets) before inventory vars are set. '''
+
+        hosts = data[valid_keys['hosts']]
+        for host in hosts:
+            host_def = hosts[host]
+            host_type = host_def.get('type')
+            if host_type in self._extension_registry:
+                ext = self._extension_registry[host_type]
+                if hasattr(ext, 'preprocess_host'):
+                    ext.preprocess_host(self, host, host_def, data, valid_keys, parser)
+        return parser, data
+
     def _parse_hosts(self, data, parser, dryrun, valid_keys):
         ''' Add hosts with appropriate groups and host vars. '''
 
-        hosts=data[valid_keys['hosts']]
+        hosts = data[valid_keys['hosts']]
+        # Accumulates global variable contributions from extensions keyed by
+        # var name.  Dict-valued contributions are merged; the variable is set
+        # on group 'all' after the host loop.
+        global_vars = {}
 
         for host in hosts:
             if (hosts[host].get('ansible_managed') == None or hosts[host].get('ansible_managed' == True)):
-                groups=self._get_hostgroups(hosts[host])
+                groups = self._get_hostgroups(hosts[host])
+                host_type = hosts[host].get('type')
 
                 if host in self.inventory.groups:
                     parser['errors'].append("%s exists as host and group name, rename one" % host)
                     continue
+
+                # type-specific validation via registered extension (dryrun only)
+                if dryrun == True and host_type in self._extension_registry:
+                    self._extension_registry[host_type].validate_host(
+                        self, host, hosts[host], hosts, parser)
 
                 if dryrun == False:
                     self.inventory.add_host(host=host)
@@ -730,15 +845,28 @@ structures provided by this. '''
 
                     self.inventory.set_variable(host, "site_parser_warnings", parser['warnings'])
                     self.inventory.set_variable(host, "site_parser_errors", parser['errors'])
-
                     self.inventory.set_variable(host, "network_nodes", data[valid_keys['hosts']])
 
-                    host_vars=hosts[host].get('host_vars')
+                    host_vars = hosts[host].get('host_vars')
                     if host_vars != None:
                         for var in host_vars:
                             self.inventory.set_variable(host, var, host_vars[var])
 
-        return parser,hosts
+                    # type-specific host setup via registered extension
+                    if host_type in self._extension_registry:
+                        contributions = self._extension_registry[host_type].setup_host(
+                            self, host, hosts[host], groups, data, valid_keys, parser)
+                        for var_name, value in (contributions or {}).items():
+                            if var_name not in global_vars:
+                                global_vars[var_name] = {}
+                            if isinstance(value, dict):
+                                global_vars[var_name].update(value)
+
+        if dryrun == False:
+            for var_name, value in global_vars.items():
+                self.inventory.set_variable("all", var_name, value)
+
+        return parser, hosts
 
 
     def _get_hostgroups(self, host):
