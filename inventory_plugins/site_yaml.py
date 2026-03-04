@@ -494,17 +494,54 @@ structures provided by this. '''
                                 parser['errors'].append("%s: duplicate IP %s" % (host, ipv4))
                             items['ips'].add(ipv4)
 
-                        # TODO, add proper validation to addresses in structs as well
-                        if network.get('addresses') != None:
-                            for address in network.get('addresses'):
-                                address_struct=network['addresses'][address]
-                                if address_struct != None:
-                                    print("non-none address %s %s" % (address, address_struct))
-                                    if address_struct.get('fqdn') == None:
-                                        pass
-                                    #placeholder for address specific dns/vlan/... resolution
+                        # ipv6 may be a plain address string ("fd42::/48") or a
+                        # router-advertisement config dict ({send_ra:, prefixes:}).
+                        # Only treat it as an IP address when it is a string.
+                        ipv6=network.get('ipv6')
+                        if isinstance(ipv6, str):
+                            ipv6_bare = re.sub(r'/.*$', "", ipv6)
+                            if ipv6_bare in items['ips'] and ipv6_bare not in dups and network.get('duplicate_ip') != True:
+                                parser['errors'].append("%s: duplicate IP %s" % (host, ipv6_bare))
+                            items['ips'].add(ipv6_bare)
 
-                                if address in items['ips'] and address not in dups and network.get('duplicate_ip') != True:
+                        # Synthesize addresses dict from ipv4/ipv6 scalar keys if
+                        # not explicitly set. Only string values represent addresses;
+                        # dict values are RA config and are not included.
+                        if network.get('addresses') is None:
+                            synthesized = {}
+                            if network.get('ipv4') is not None:
+                                synthesized[network['ipv4']] = {'host_duplicate': True}
+                            if isinstance(ipv6, str):
+                                synthesized[ipv6] = {'host_duplicate': True}
+                            if synthesized:
+                                data[k['hosts']][host]['networks'][if_key]['addresses'] = synthesized
+
+                        if network.get('addresses') is not None:
+                            _valid_address_keys = {
+                                'fqdn', 'dns', 'nodns', 'alias', 'host_duplicate',
+                                'peer', 'broadcast', 'label', 'preferred_lifetime',
+                                'home_address', 'duplicate_address_detection',
+                                'manage_temporary_address', 'prefix_route',
+                                'auto_join', 'gateway',
+                            }
+                            for address in network.get('addresses'):
+                                address_struct = network['addresses'][address]
+                                if address_struct is not None:
+                                    unknown = set(address_struct.keys()) - _valid_address_keys
+                                    if unknown:
+                                        parser['errors'].append(
+                                            "%s: unknown address struct key(s) for %s: %s"
+                                            % (host, address, ', '.join(sorted(unknown))))
+                                    for str_key in ('fqdn', 'dns'):
+                                        if str_key in address_struct and not isinstance(address_struct[str_key], str):
+                                            parser['errors'].append(
+                                                "%s: %s for %s must be a string" % (host, str_key, address))
+                                    for bool_key in ('nodns', 'alias'):
+                                        if bool_key in address_struct and not isinstance(address_struct[bool_key], bool):
+                                            parser['errors'].append(
+                                                "%s: %s for %s must be a boolean" % (host, bool_key, address))
+
+                                if address in items['ips'] and address not in dups and network.get('duplicate_ip') != True and not (address_struct or {}).get('host_duplicate'):
                                     parser['errors'].append("%s: duplicate IP %s" % (host, address))
                                 items['ips'].add(address)
 
