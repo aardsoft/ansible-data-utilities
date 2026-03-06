@@ -957,22 +957,32 @@ structures provided by this. '''
         ''' Synthesize derived metadata on each host interface.
 
         Adds the following keys where they can be resolved:
-          resolved_vlan  - VLAN ID string (int as str), walked via bridge/VM chain
-          dhcp_network   - name of the DHCP network whose subnet contains iface.ipv4
-          dns_name       - FQDN for the interface (without trailing dot), built from
-                           iface.dns / resolved_vlan / host_name + dns_domain
+          resolved_vlan     - VLAN ID string (int as str), walked via bridge/VM chain
+          dhcp_network      - name of the DHCP network whose subnet contains iface.ipv4
+          dns_name          - FQDN for the interface (without trailing dot), built from
+                              iface.dns / resolved_vlan / host_name + dns_domain
+          dns_iface_domain  - domain portion for alias resolution (vlan.domain or domain)
+          dns_aliases_fqdn  - list of fully-resolved alias FQDNs (no trailing dot),
+                              built from iface.dns_aliases plus one alias per
+                              legacy_domain entry (for graceful domain migrations)
 
         dns_domain is read from default_vars.dns_domain if present, otherwise
         from the top-level default_domain key.
+
+        legacy_domains (optional list in default_vars) enables zero-downtime domain
+        migrations: for each legacy domain, an alias is auto-generated for every
+        interface by replacing dns_domain with the legacy domain in dns_name.
 
         Must be called after _sanitise_hosts_data so addresses are synthesized.
         '''
         hosts = data.get(valid_keys['hosts'], {})
         dhcp_networks = data.get(valid_keys['networks'], {})
-        dns_domain = (
-            (data.get(valid_keys['default_vars']) or {}).get('dns_domain')
-            or data.get('default_domain')
-        )
+        default_vars = data.get(valid_keys['default_vars']) or {}
+        dns_domain = default_vars.get('dns_domain') or data.get('default_domain')
+        legacy_domains_raw = default_vars.get('legacy_domains') or []
+        if isinstance(legacy_domains_raw, str):
+            legacy_domains_raw = [legacy_domains_raw]
+        legacy_domains = [str(d).rstrip('.') for d in legacy_domains_raw]
 
         for host_name, host_def in hosts.items():
             if not isinstance(host_def, dict):
@@ -1013,6 +1023,22 @@ structures provided by this. '''
                         dns_iface_domain = dns_domain
                     data[valid_keys['hosts']][host_name]['networks'][if_key]['dns_name'] = dns_name
                     data[valid_keys['hosts']][host_name]['networks'][if_key]['dns_iface_domain'] = dns_iface_domain
+
+                    # Resolve dns_aliases to FQDNs
+                    aliases_fqdn = []
+                    for alias in iface.get('dns_aliases') or []:
+                        alias = str(alias)
+                        if alias.endswith('.'):
+                            aliases_fqdn.append(alias.rstrip('.'))
+                        else:
+                            aliases_fqdn.append('%s.%s' % (alias, dns_iface_domain))
+                    # Auto-generate aliases for legacy domains (domain migration support)
+                    for legacy_domain in legacy_domains:
+                        if dns_name.endswith('.' + dns_domain):
+                            prefix = dns_name[:-(len(dns_domain) + 1)]
+                            aliases_fqdn.append('%s.%s' % (prefix, legacy_domain))
+                    if aliases_fqdn:
+                        data[valid_keys['hosts']][host_name]['networks'][if_key]['dns_aliases_fqdn'] = aliases_fqdn
 
         return parser, data
 
