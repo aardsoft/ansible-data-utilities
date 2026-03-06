@@ -701,22 +701,45 @@ structures provided by this. '''
             else:
                 vlans[network_name]=self.get_option('missing_vlan_id')
 
+        default_vars = data.get(k['default_vars']) or {}
+        dns_domain = default_vars.get('dns_domain') or data.get('default_domain')
+
         for net_name in networks:
             net = networks[net_name]
             if not isinstance(net, dict):
                 continue
+            # Pre-compute DHCP domain-name and domain-search option values
+            if dns_domain:
+                if net_name == 'default':
+                    data[k['networks']][net_name]['dhcp_domain_name'] = '"%s"' % dns_domain
+                    data[k['networks']][net_name]['dhcp_domain_search'] = '"%s", "%s.%s"' % (dns_domain, net_name, dns_domain)
+                else:
+                    data[k['networks']][net_name]['dhcp_domain_name'] = '"%s.%s"' % (net_name, dns_domain)
+                    data[k['networks']][net_name]['dhcp_domain_search'] = '"%s.%s", "%s"' % (net_name, dns_domain, dns_domain)
             subnets = net.get('subnets')
             if not subnets:
                 continue
             if isinstance(subnets, dict):
-                subnet_list = subnets.keys()
+                subnet_list = list(subnets.keys())
             else:
-                subnet_list = subnets
+                subnet_list = list(subnets)
             reverse_zones = {}
             for subnet in subnet_list:
                 rz = self._subnet_reverse_zone(subnet)
                 if rz:
                     reverse_zones[subnet] = rz
+                # Pre-compute normalized subnet network address and netmask
+                subnet_data = subnets.get(subnet) if isinstance(subnets, dict) else None
+                explicit_netmask = subnet_data.get('netmask') if isinstance(subnet_data, dict) else None
+                cidr = '%s/%s' % (subnet, explicit_netmask) if explicit_netmask else subnet
+                try:
+                    net_obj = ipaddress.ip_network(cidr, strict=False)
+                    if not isinstance(data[k['networks']][net_name]['subnets'][subnet], dict):
+                        data[k['networks']][net_name]['subnets'][subnet] = {}
+                    data[k['networks']][net_name]['subnets'][subnet]['subnet_network'] = str(net_obj.network_address)
+                    data[k['networks']][net_name]['subnets'][subnet]['subnet_netmask'] = str(net_obj.netmask)
+                except ValueError:
+                    pass
             if reverse_zones:
                 data[k['networks']][net_name]['reverse_zones'] = reverse_zones
 
