@@ -207,6 +207,7 @@ DOCUMENTATION = '''
 '''
 
 import importlib.util
+import ipaddress
 import os
 import re
 import json
@@ -385,6 +386,7 @@ class InventoryModule(BaseInventoryPlugin):
 
         if valid_keys['hosts'] in keys:
             parser, parsed_data=self._sanitise_hosts_data(parsed_data, valid_keys, parser)
+            parser, parsed_data=self._synthesize_host_network_metadata(parsed_data, valid_keys, parser)
             parser, parsed_data=self._preprocess_hosts(parsed_data, valid_keys, parser)
         else:
             raise AnsibleParserError("No hosts key (%s) found, can't continue." % valid_keys['hosts'])
@@ -693,6 +695,25 @@ structures provided by this. '''
             else:
                 vlans[network_name]=self.get_option('missing_vlan_id')
 
+        for net_name in networks:
+            net = networks[net_name]
+            if not isinstance(net, dict):
+                continue
+            subnets = net.get('subnets')
+            if not subnets:
+                continue
+            if isinstance(subnets, dict):
+                subnet_list = subnets.keys()
+            else:
+                subnet_list = subnets
+            reverse_zones = {}
+            for subnet in subnet_list:
+                rz = self._subnet_reverse_zone(subnet)
+                if rz:
+                    reverse_zones[subnet] = rz
+            if reverse_zones:
+                data[k['networks']][net_name]['reverse_zones'] = reverse_zones
+
         if self.get_option('generate_dhcp_networks') == True:
             self.inventory.set_variable("all", "dhcp_networks", data[k['networks']])
 
@@ -827,6 +848,135 @@ structures provided by this. '''
 
                 # also ignore dummy and wg
         return phy, tp, parser
+
+    def _subnet_reverse_zone(self, subnet_str):
+        ''' Compute the DNS reverse zone name for a subnet.
+
+        Returns the in-addr.arpa or ip6.arpa zone name corresponding to the
+        given subnet string.  For IPv4 prefixes longer than /24, returns a
+        classless delegation zone name (e.g. "128/25.0.0.10.in-addr.arpa").
+        Returns None if the subnet string is invalid.
+        '''
+        try:
+            net = ipaddress.ip_network(subnet_str, strict=False)
+        except ValueError:
+            return None
+
+        prefix = net.prefixlen
+        labels = net.network_address.reverse_pointer.split('.')
+
+        if net.version == 4:
+            if prefix <= 8:
+                return '.'.join(labels[3:])
+            elif prefix <= 16:
+                return '.'.join(labels[2:])
+            elif prefix <= 24:
+                return '.'.join(labels[1:])
+            else:
+                host_octet = str(net.network_address).split('.')[-1]
+                parent_zone = '.'.join(labels[1:])
+                return '%s/%s.%s' % (host_octet, prefix, parent_zone)
+        else:
+            nibbles = prefix // 4
+            return '.'.join(labels[32 - nibbles:])
+
+    def _resolve_iface_vlan(self, hosts, host_name, host_type, if_key, iface):
+        ''' Resolve the VLAN ID for a host interface.
+
+        Returns the VLAN ID as a string, or None if not resolvable.
+        Resolution order:
+          1. Direct vlan key on the interface itself (if not "default")
+          2. Bridge: find sibling interface where bridge == if_key and take its vlan
+          3. VM/LXC: follow machine + link to parent host, then check 1 and 2 there
+        '''
+        vlan = iface.get('vlan')
+        if vlan is not None and vlan != 'default':
+            return str(vlan)
+
+        if iface.get('type') == 'bridge':
+            host_nets = hosts.get(host_name, {}).get('networks', {})
+            for sib_key, sib_iface in host_nets.items():
+                if sib_iface.get('bridge') == if_key:
+                    sib_vlan = sib_iface.get('vlan')
+                    if sib_vlan is not None and sib_vlan != 'default':
+                        return str(sib_vlan)
+
+        if host_type in ('lxc', 'kvm'):
+            machine = iface.get('machine')
+            link = iface.get('link')
+            if machine and link and machine in hosts:
+                parent_iface = hosts[machine].get('networks', {}).get(link, {})
+                parent_vlan = parent_iface.get('vlan')
+                if parent_vlan is not None and parent_vlan != 'default':
+                    return str(parent_vlan)
+                if parent_iface.get('type') == 'bridge':
+                    parent_nets = hosts[machine].get('networks', {})
+                    for sib_key, sib_iface in parent_nets.items():
+                        if sib_iface.get('bridge') == link:
+                            sib_vlan = sib_iface.get('vlan')
+                            if sib_vlan is not None and sib_vlan != 'default':
+                                return str(sib_vlan)
+
+        return None
+
+    def _resolve_iface_dhcp_network(self, dhcp_networks, iface):
+        ''' Return the DHCP network name whose subnet contains iface.ipv4.
+
+        Strips the prefix from iface.ipv4 and tests the bare IP against every
+        subnet entry in every network.  Returns the first match, or None.
+        '''
+        ipv4 = iface.get('ipv4')
+        if not ipv4:
+            return None
+        bare_ip = re.sub(r'/.*$', '', str(ipv4))
+        try:
+            addr = ipaddress.ip_address(bare_ip)
+        except ValueError:
+            return None
+        for net_name, net in dhcp_networks.items():
+            if not isinstance(net, dict):
+                continue
+            subnets = net.get('subnets', [])
+            if isinstance(subnets, dict):
+                subnets = subnets.keys()
+            for subnet in subnets:
+                try:
+                    if addr in ipaddress.ip_network(subnet, strict=False):
+                        return net_name
+                except ValueError:
+                    continue
+        return None
+
+    def _synthesize_host_network_metadata(self, data, valid_keys, parser):
+        ''' Synthesize derived metadata on each host interface.
+
+        Adds the following keys where they can be resolved:
+          resolved_vlan  - VLAN ID string (int as str), walked via bridge/VM chain
+          dhcp_network   - name of the DHCP network whose subnet contains iface.ipv4
+
+        Must be called after _sanitise_hosts_data so addresses are synthesized.
+        '''
+        hosts = data.get(valid_keys['hosts'], {})
+        dhcp_networks = data.get(valid_keys['networks'], {})
+
+        for host_name, host_def in hosts.items():
+            if not isinstance(host_def, dict):
+                continue
+            host_type = host_def.get('type')
+            networks = host_def.get('networks')
+            if not networks:
+                continue
+            for if_key, iface in networks.items():
+                if not isinstance(iface, dict):
+                    continue
+                vlan = self._resolve_iface_vlan(hosts, host_name, host_type, if_key, iface)
+                if vlan is not None:
+                    data[valid_keys['hosts']][host_name]['networks'][if_key]['resolved_vlan'] = vlan
+                dn = self._resolve_iface_dhcp_network(dhcp_networks, iface)
+                if dn is not None:
+                    data[valid_keys['hosts']][host_name]['networks'][if_key]['dhcp_network'] = dn
+
+        return parser, data
 
     def _find_role_path(self, role_name):
         ''' Return the filesystem path of a named role, or None if not found. '''
