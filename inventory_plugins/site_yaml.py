@@ -724,22 +724,24 @@ structures provided by this. '''
             else:
                 subnet_list = list(subnets)
             reverse_zones = {}
+            new_subnets = {}
             for subnet in subnet_list:
                 rz = self._subnet_reverse_zone(subnet)
                 if rz:
                     reverse_zones[subnet] = rz
                 # Pre-compute normalized subnet network address and netmask
                 subnet_data = subnets.get(subnet) if isinstance(subnets, dict) else None
-                explicit_netmask = subnet_data.get('netmask') if isinstance(subnet_data, dict) else None
+                new_subnet = dict(subnet_data) if isinstance(subnet_data, dict) else {}
+                explicit_netmask = new_subnet.get('netmask')
                 cidr = '%s/%s' % (subnet, explicit_netmask) if explicit_netmask else subnet
                 try:
                     net_obj = ipaddress.ip_network(cidr, strict=False)
-                    if not isinstance(data[k['networks']][net_name]['subnets'][subnet], dict):
-                        data[k['networks']][net_name]['subnets'][subnet] = {}
-                    data[k['networks']][net_name]['subnets'][subnet]['subnet_network'] = str(net_obj.network_address)
-                    data[k['networks']][net_name]['subnets'][subnet]['subnet_netmask'] = str(net_obj.netmask)
+                    new_subnet['subnet_network'] = str(net_obj.network_address)
+                    new_subnet['subnet_netmask'] = str(net_obj.netmask)
                 except ValueError:
                     pass
+                new_subnets[subnet] = new_subnet
+            data[k['networks']][net_name]['subnets'] = new_subnets
             if reverse_zones:
                 data[k['networks']][net_name]['reverse_zones'] = reverse_zones
 
