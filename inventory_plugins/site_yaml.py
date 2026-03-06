@@ -30,11 +30,28 @@ DOCUMENTATION = '''
           - key: allowed_duplicate_ips
             section: site_yaml
       dump_file:
-        description: a file to dump parsed inventory to
+        description: >
+          Write the parsed site.yaml data structure (after sanitisation and
+          preprocessing but before inventory population) to this file as JSON.
+          Useful for inspecting raw host/network/group data and for comparing
+          data normalisation changes.
         type: string
         default: ""
         ini:
           - key: dump_file
+            section: site_yaml
+      inventory_dump_file:
+        description: >
+          Write the fully-populated Ansible inventory (all hosts, groups and
+          their variables, including derived variables set by extensions such
+          as network_pods) to this file as JSON after all parsing is complete.
+          Produces output comparable to C(ansible-inventory --list) and is
+          useful for debugging variable resolution and detecting regressions
+          when changing data normalisation logic.
+        type: string
+        default: ""
+        ini:
+          - key: inventory_dump_file
             section: site_yaml
       site_files:
         description: a list of valid filenames for the site inventory
@@ -402,6 +419,46 @@ class InventoryModule(BaseInventoryPlugin):
             raise AnsibleParserError("Above errors found parsing site data")
 
         parser,hosts=self._parse_hosts(parsed_data, parser, False, valid_keys)
+
+        if self.get_option('inventory_dump_file') != "":
+            self._dump_inventory(self.get_option('inventory_dump_file'))
+
+
+    def _dump_inventory(self, path):
+        ''' Serialize the fully-populated Ansible inventory to a JSON file.
+
+        Captures hosts, groups and all variables (including those set by
+        extensions on group 'all', such as network_pods) after the complete
+        parse cycle.  Non-JSON-serializable values are converted to strings.
+        Errors are reported as warnings rather than failing the inventory run.
+        '''
+
+        out = {
+            'hosts': {},
+            'groups': {},
+        }
+
+        for host_name in sorted(self.inventory.hosts):
+            host = self.inventory.hosts[host_name]
+            out['hosts'][host_name] = {
+                'vars': dict(host.vars),
+                'groups': sorted(g.name for g in host.groups),
+            }
+
+        for group_name in sorted(self.inventory.groups):
+            group = self.inventory.groups[group_name]
+            out['groups'][group_name] = {
+                'vars': dict(group.vars),
+                'hosts': sorted(h.name for h in group.hosts),
+                'children': sorted(c.name for c in group.child_groups),
+            }
+
+        try:
+            with open(path, 'w') as f:
+                f.write(json.dumps(out, indent=4, sort_keys=True, default=str))
+        except Exception as e:
+            self.display.warning(
+                "Failed to write inventory dump to '%s': %s" % (path, e))
 
 
     def _sanitise_hosts_data(self, vanilla_data, k, parser):
