@@ -398,6 +398,12 @@ class InventoryModule(BaseInventoryPlugin):
         if valid_keys['default_vars'] in keys:
             parser=self._add_default_vars(parsed_data, valid_keys, parser)
 
+        # Promote default_domain to the dns_domain inventory variable unless
+        # already set explicitly via default_vars.
+        _explicit_dns_domain = (parsed_data.get(valid_keys['default_vars']) or {}).get('dns_domain')
+        if not _explicit_dns_domain and parsed_data.get('default_domain'):
+            self.inventory.set_variable("all", "dns_domain", parsed_data['default_domain'])
+
         if valid_keys['groups'] in keys or self.get_option('dynamic_groups')==True:
             parser=self._add_groups(parsed_data, valid_keys, parser)
 
@@ -902,7 +908,7 @@ structures provided by this. '''
                         return str(sib_vlan)
 
         if host_type in ('lxc', 'kvm'):
-            machine = iface.get('machine')
+            machine = hosts.get(host_name, {}).get('machine')
             link = iface.get('link')
             if machine and link and machine in hosts:
                 parent_iface = hosts[machine].get('networks', {}).get(link, {})
@@ -953,11 +959,20 @@ structures provided by this. '''
         Adds the following keys where they can be resolved:
           resolved_vlan  - VLAN ID string (int as str), walked via bridge/VM chain
           dhcp_network   - name of the DHCP network whose subnet contains iface.ipv4
+          dns_name       - FQDN for the interface (without trailing dot), built from
+                           iface.dns / resolved_vlan / host_name + dns_domain
+
+        dns_domain is read from default_vars.dns_domain if present, otherwise
+        from the top-level default_domain key.
 
         Must be called after _sanitise_hosts_data so addresses are synthesized.
         '''
         hosts = data.get(valid_keys['hosts'], {})
         dhcp_networks = data.get(valid_keys['networks'], {})
+        dns_domain = (
+            (data.get(valid_keys['default_vars']) or {}).get('dns_domain')
+            or data.get('default_domain')
+        )
 
         for host_name, host_def in hosts.items():
             if not isinstance(host_def, dict):
@@ -975,6 +990,29 @@ structures provided by this. '''
                 dn = self._resolve_iface_dhcp_network(dhcp_networks, iface)
                 if dn is not None:
                     data[valid_keys['hosts']][host_name]['networks'][if_key]['dhcp_network'] = dn
+                if dns_domain:
+                    explicit_dns = iface.get('dns')
+                    # dns_subdomain: false on the network suppresses the vlan label
+                    net_cfg = dhcp_networks.get(vlan, {}) if vlan else {}
+                    use_vlan = vlan and not (isinstance(net_cfg, dict) and net_cfg.get('dns_subdomain') == False)
+                    if explicit_dns:
+                        if str(explicit_dns).endswith('.'):
+                            dns_name = str(explicit_dns).rstrip('.')
+                            dns_iface_domain = dns_domain
+                        elif use_vlan:
+                            dns_name = '%s.%s.%s' % (explicit_dns, vlan, dns_domain)
+                            dns_iface_domain = '%s.%s' % (vlan, dns_domain)
+                        else:
+                            dns_name = '%s.%s' % (explicit_dns, dns_domain)
+                            dns_iface_domain = dns_domain
+                    elif use_vlan:
+                        dns_name = '%s.%s.%s' % (host_name, vlan, dns_domain)
+                        dns_iface_domain = '%s.%s' % (vlan, dns_domain)
+                    else:
+                        dns_name = '%s.%s' % (host_name, dns_domain)
+                        dns_iface_domain = dns_domain
+                    data[valid_keys['hosts']][host_name]['networks'][if_key]['dns_name'] = dns_name
+                    data[valid_keys['hosts']][host_name]['networks'][if_key]['dns_iface_domain'] = dns_iface_domain
 
         return parser, data
 
