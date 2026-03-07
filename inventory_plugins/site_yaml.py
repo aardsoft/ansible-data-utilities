@@ -954,7 +954,9 @@ structures provided by this. '''
         ''' Return the DHCP network name whose subnet contains iface.ipv4.
 
         Strips the prefix from iface.ipv4 and tests the bare IP against every
-        subnet entry in every network.  Returns the first match, or None.
+        subnet entry in every network.  Uses pre-computed subnet_network and
+        subnet_netmask when available, checks for explicit netmask key when not.
+        Returns the first match, or None.
         '''
         ipv4 = iface.get('ipv4')
         if not ipv4:
@@ -967,15 +969,25 @@ structures provided by this. '''
         for net_name, net in dhcp_networks.items():
             if not isinstance(net, dict):
                 continue
-            subnets = net.get('subnets', [])
+            subnets = net.get('subnets', {})
             if isinstance(subnets, dict):
-                subnets = subnets.keys()
-            for subnet in subnets:
-                try:
-                    if addr in ipaddress.ip_network(subnet, strict=False):
-                        return net_name
-                except ValueError:
-                    continue
+                for subnet_key, subnet_data in subnets.items():
+                    if isinstance(subnet_data, dict) and subnet_data.get('subnet_network') and subnet_data.get('subnet_netmask'):
+                        cidr = '%s/%s' % (subnet_data['subnet_network'], subnet_data['subnet_netmask'])
+                    else:
+                        cidr = subnet_key
+                    try:
+                        if addr in ipaddress.ip_network(cidr, strict=False):
+                            return net_name
+                    except ValueError:
+                        continue
+            else:
+                for subnet in subnets:
+                    try:
+                        if addr in ipaddress.ip_network(subnet, strict=False):
+                            return net_name
+                    except ValueError:
+                        continue
         return None
 
     def _synthesize_host_network_metadata(self, data, valid_keys, parser):
