@@ -10,6 +10,10 @@ on:
         required: false
         type: string
         default: 'container-image'
+      extra-repositories: # Repos to pass through to kiwi
+        required: false
+        type: string
+        default: ''
 
 jobs:
   build-images:
@@ -33,3 +37,4 @@ jobs:
         uses: aardsoft/ci-actions/kiwi-build@master
         with:
           image-directory: ${{ inputs.image-directory }}
+          extra-repositories: ${{ inputs.extra-repositories }}
