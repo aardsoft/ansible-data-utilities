@@ -53,7 +53,9 @@ jobs:
           # typically the role would also clone that - but we need it there already for the inventory
           # plugin functionality
           git clone https://github.com/aardsoft/ansible-data-utilities.git playbooks/roles/data-utilities
-          pytest
+          if [ -d tests/unit ]; then
+            pytest
+          fi
           ansible-playbook playbooks/test.yml
           # not sure if those old runs still add any value
           if [ -f tests/ansible-info.yml ]; then
