@@ -16,11 +16,21 @@
             "networks": {
                 "enp0s5": {
                     "cfg_prefix": "10",
+                    "dns_iface_domain": "ci-demo.aardsoft.fi",
+                    "dns_name": "microgw.ci-demo.aardsoft.fi",
                     "masquerade": "both",
                     "static": false
                 },
                 "enp0s6": {
+                    "addresses": {
+                        "10.11.12.1/24": {
+                            "host_duplicate": true
+                        }
+                    },
                     "cfg_prefix": "10",
+                    "dhcp_network": "demo",
+                    "dns_iface_domain": "ci-demo.aardsoft.fi",
+                    "dns_name": "microgw.ci-demo.aardsoft.fi",
                     "ipv4": "10.11.12.1/24",
                     "masquerade": "both",
                     "static": true
@@ -32,6 +42,11 @@
     },
     "networks": {
         "demo": {
+            "dhcp_domain_name": "\"demo.ci-demo.aardsoft.fi\"",
+            "dhcp_domain_search": "\"demo.ci-demo.aardsoft.fi\", \"ci-demo.aardsoft.fi\"",
+            "reverse_zones": {
+                "10.11.12.0/24": "12.11.10.in-addr.arpa"
+            },
             "subnets": {
                 "10.11.12.0/24": {
                     "boot_options": {
@@ -44,9 +59,14 @@
                         "option routers 10.11.12.1",
                         "option ntp-servers 10.11.12.1",
                         "option domain-name-servers 10.11.12.1"
-                    ]
+                    ],
+                    "subnet_netmask": "255.255.255.0",
+                    "subnet_network": "10.11.12.0"
                 }
             }
         }
+    },
+    "vlans": {
+        "demo": "5000"
     }
 }
