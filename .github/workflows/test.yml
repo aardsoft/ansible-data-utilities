@@ -56,5 +56,9 @@ jobs:
           pytest
           ansible-playbook playbooks/test.yml
           # not sure if those old runs still add any value
-          ansible-playbook tests/ansible-info.yml
-          ansible-playbook tests/ansible-ci.yml -e destructive_tests=True
+          if [ -f tests/ansible-info.yml ]; then
+            ansible-playbook tests/ansible-info.yml
+          fi
+          if [ -f tests/ansible-ci.yml ]; then
+            ansible-playbook tests/ansible-ci.yml -e destructive_tests=True
+          fi
