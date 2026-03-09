@@ -43,8 +43,9 @@ jobs:
         run: |
           python3 -m virtualenv ansible-${{ matrix.ansible }} --system-site-packages
           source ansible-${{ matrix.ansible }}/bin/activate
-          python3 -m pip install ansible==${{ matrix.ansible }} netaddr
+          python3 -m pip install ansible==${{ matrix.ansible }} netaddr pytest
           # typically the role would also clone that - but we need it there already for the inventory
           # plugin functionality
           git clone https://github.com/aardsoft/ansible-data-utilities.git playbooks/roles/data-utilities
+          pytest
           ansible-playbook playbooks/test.yml
