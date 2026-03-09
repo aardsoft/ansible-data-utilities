@@ -1,0 +1,35 @@
+name: shared container builder
+
+on:
+  workflow_call:
+    inputs:
+      run_before: # optional role-specific steps
+        required: false
+        type: string
+      image-directory:
+        required: false
+        type: string
+        default: 'container-image'
+
+jobs:
+  build-images:
+    runs-on: opensuse-leap-imgbuild
+    steps:
+      - name: 'Checkout Calling Repository'
+        uses: actions/checkout@v4
+
+      - name: Run custom pre-build steps
+        if: ${{ inputs.run_before != '' }}
+        run: ${{ inputs.run_before }}
+
+      - name: 'Login to GitHub Container Registry'
+        uses: redhat-actions/podman-login@v1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build leap base image
+        uses: aardsoft/ci-actions/kiwi-build@master
+        with:
+          image-directory: ${{ inputs.image-directory }}
