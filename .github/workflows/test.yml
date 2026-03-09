@@ -6,6 +6,10 @@ on:
   workflow_dispatch:
   workflow_call:
 
+# there still are a bunch of distributions out there with python 3.6 - ansible
+# 9.x was the last one to support that, so for now we still support that.
+# we probably don't need to support the EOL versions in between those and the
+# current ones, but there's no harm in adding them to the test run here.
 jobs:
   tests:
     runs-on: ${{ matrix.os }}
@@ -16,7 +20,9 @@ jobs:
         ansible:
           - 9.13.0
           - 10.7.0
-          - 11.4.0
+          - 11.13.0
+          - 12.3.0
+          - 13.4.0
 
     steps:
       - uses: actions/checkout@v3
@@ -49,3 +55,6 @@ jobs:
           git clone https://github.com/aardsoft/ansible-data-utilities.git playbooks/roles/data-utilities
           pytest
           ansible-playbook playbooks/test.yml
+          # not sure if those old runs still add any value
+          ansible-playbook tests/ansible-info.yml
+          ansible-playbook tests/ansible-ci.yml -e destructive_tests=True
