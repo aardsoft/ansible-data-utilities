@@ -19,8 +19,18 @@ jobs:
       - name: Checkout Calling Repository
         uses: actions/checkout@v4
 
+      - name: Detect git tag
+        id: refs
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            echo "git_tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "git_tag=" >> $GITHUB_OUTPUT
+          fi
+
       - name: Run Build Logic
         uses: aardsoft/ansible-data-utilities/.github/actions/container-build@master
         with:
           image-directory: ${{ inputs.image-directory }}
           extra-repositories: ${{ inputs.extra-repositories }}
+          git-tag: ${{ steps.refs.outputs.git_tag }}

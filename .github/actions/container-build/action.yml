@@ -9,6 +9,10 @@ inputs:
     description: 'Extra repo URLs for kiwi-build'
     required: false
     default: ''
+  git-tag:
+    description: 'Git tag to push in addition to the kiwi version tag and latest'
+    required: false
+    default: ''
 
 runs:
   using: 'composite'
@@ -25,3 +29,4 @@ runs:
       with:
         image-directory: ${{ inputs.image-directory }}
         extra-repositories: ${{ inputs.extra-repositories }}
+        git-tag: ${{ inputs.git-tag }}
