@@ -59,15 +59,7 @@ Unmanaged={{ _iface.value.unmanaged | default('no')|boolconv('yesno')}}
 [Network]
 #Description=
 {% if _iface.value.static is defined and _iface.value.static == True %}
-{# TODO: check if it's a dict. in that case, add multiple address #}
-{#       sections instead                                         #}
-{# TODO: add prefixes #}
-  {% if _iface.value.ipv4 is defined %}
-Address={{ _iface.value.ipv4 }}
-  {% endif %}
-  {% if _iface.value.gateway is defined %}
-Gateway={{ _iface.value.gateway }}
-  {% endif %}
+DHCP=no
 {% elif _iface.value.static is defined and _iface.value.static == False %}
 DHCP=yes
 {# if ipv4 and hwaddr is defined, but static is not assume that the address #}
@@ -231,7 +223,6 @@ Address={{ip}}
  {% endfor %}
 {% endif %}
 
-{# FIXME #}
 {% if _iface.value.addresses is defined %}
   {% for address in _iface.value.addresses %}
 [Address]
@@ -272,6 +263,11 @@ Gateway={{_iface.value.addresses[address].gateway}}
     {#       re-using it                                                     #}
     {% endif %}
   {% endfor %}
+{% endif %}
+
+{% if _iface.value.gateway is defined %}
+[Route]
+Gateway={{ _iface.value.gateway }}
 {% endif %}
 
 #[IPv6AddressLabel]
