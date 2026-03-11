@@ -7,7 +7,12 @@ on:
         required: false
         type: string
         default: 'container-image'
-      extra-repositories: # Repos to pass through to kiwi
+      extra-repositories:
+        required: false
+        type: string
+        default: ''
+      extra-architectures:
+        description: 'Space-separated architectures to build via QEMU emulation (e.g. "aarch64")'
         required: false
         type: string
         default: ''
@@ -28,9 +33,10 @@ jobs:
             echo "git_tag=" >> $GITHUB_OUTPUT
           fi
 
-      - name: Run Build Logic
-        uses: aardsoft/ansible-data-utilities/.github/actions/container-build@master
+      - name: Build
+        uses: aardsoft/ci-actions/kiwi-build-multiarch@master
         with:
           image-directory: ${{ inputs.image-directory }}
           extra-repositories: ${{ inputs.extra-repositories }}
+          extra-architectures: ${{ inputs.extra-architectures }}
           git-tag: ${{ steps.refs.outputs.git_tag }}
