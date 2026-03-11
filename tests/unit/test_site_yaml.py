@@ -6,6 +6,7 @@ Ansible inventory run:
   - _resolve_iface_vlan
   - _resolve_iface_dhcp_network
   - _sanitise_networks_data  (subnet pre-computation and domain-name synthesis)
+  - _sanitise_hosts_data     (address synthesis from scalar ipv4/ipv6 keys)
   - _synthesize_host_network_metadata  (dhcp_network and dns_name derivation)
 """
 import pytest
@@ -204,6 +205,53 @@ class TestResolveIfaceDhcpNetwork:
     def test_non_dict_net_skipped(self, plugin):
         nets = {'broken': None}
         assert plugin._resolve_iface_dhcp_network(nets, {'ipv4': '1.2.3.4'}) is None
+
+
+# ---------------------------------------------------------------------------
+# _sanitise_hosts_data  (address synthesis from scalar ipv4/ipv6 keys)
+# ---------------------------------------------------------------------------
+
+class TestSanitiseHostsAddressSynthesis:
+    def _run(self, iface):
+        p = make_plugin()
+        k = make_valid_keys()
+        data = make_data(hosts={'h': {'type': 'server', 'networks': {'if0': iface}}})
+        _, result = p._sanitise_hosts_data(data, k, fresh_parser())
+        return result['hosts']['h']['networks']['if0']
+
+    def test_ipv4_scalar_creates_addresses(self):
+        iface = self._run({'ipv4': '192.168.1.1/24'})
+        assert '192.168.1.1/24' in iface['addresses']
+        assert iface['addresses']['192.168.1.1/24'].get('host_duplicate') is True
+
+    def test_ipv4_scalar_merged_into_explicit_addresses(self):
+        # When an explicit addresses dict exists (e.g. IPv6 only), the ipv4
+        # scalar must still be merged in — the storage1 management iface case.
+        iface = self._run({
+            'ipv4': '192.168.33.2/24',
+            'addresses': {
+                'fd00:5c81:300:9233::2/64': {'gateway': 'fd00:5c81:300:9233::1'},
+            },
+        })
+        assert '192.168.33.2/24' in iface['addresses']
+        assert iface['addresses']['192.168.33.2/24'].get('host_duplicate') is True
+        # Existing IPv6 entry must be preserved
+        assert 'fd00:5c81:300:9233::2/64' in iface['addresses']
+
+    def test_ipv4_not_duplicated_if_already_in_addresses(self):
+        # If the same address appears both as a scalar and in the explicit dict,
+        # it should not be overwritten or duplicated.
+        iface = self._run({
+            'ipv4': '10.0.0.1/24',
+            'addresses': {
+                '10.0.0.1/24': {'label': 'eth0'},
+            },
+        })
+        assert iface['addresses']['10.0.0.1/24'] == {'label': 'eth0'}
+
+    def test_no_addresses_when_neither_ipv4_nor_ipv6(self):
+        iface = self._run({'type': 'bridge'})
+        assert 'addresses' not in iface
 
 
 # ---------------------------------------------------------------------------

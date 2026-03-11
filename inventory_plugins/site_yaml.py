@@ -569,17 +569,19 @@ structures provided by this. '''
                                 parser['errors'].append("%s: duplicate IP %s" % (host, ipv6_bare))
                             items['ips'].add(ipv6_bare)
 
-                        # Synthesize addresses dict from ipv4/ipv6 scalar keys if
-                        # not explicitly set. Only string values represent addresses;
-                        # dict values are RA config and are not included.
+                        # Merge ipv4/ipv6 scalar keys into addresses. Only string
+                        # values represent addresses; dict values are RA config and
+                        # are not included. host_duplicate suppresses the conflict
+                        # warning for the same address appearing in both places.
                         if network.get('addresses') is None:
-                            synthesized = {}
-                            if network.get('ipv4') is not None:
-                                synthesized[network['ipv4']] = {'host_duplicate': True}
-                            if isinstance(ipv6, str):
-                                synthesized[ipv6] = {'host_duplicate': True}
-                            if synthesized:
-                                data[k['hosts']][host]['networks'][if_key]['addresses'] = synthesized
+                            network['addresses'] = {}
+                        if network.get('ipv4') is not None and network['ipv4'] not in network['addresses']:
+                            network['addresses'][network['ipv4']] = {'host_duplicate': True}
+                        if isinstance(ipv6, str) and ipv6 not in network['addresses']:
+                            network['addresses'][ipv6] = {'host_duplicate': True}
+                        if not network['addresses']:
+                            # we don't want {} for hosts without any addresses configured
+                            del network['addresses']
 
                         if network.get('addresses') is not None:
                             _valid_address_keys = {
