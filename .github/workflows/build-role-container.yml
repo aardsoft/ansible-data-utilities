@@ -16,13 +16,18 @@ on:
         required: false
         type: string
         default: ''
+      repository:
+        description: 'Main repository for the image'
+        required: false
+        type: string
+        default: 'https://download.opensuse.org/distribution/leap/16.0/repo/oss'
 
 jobs:
   build-images:
-    runs-on: opensuse-leap-imgbuild
+    runs-on: opensuse-leap16-imgbuild
     steps:
       - name: Checkout Calling Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Detect git tag
         id: refs
@@ -39,4 +44,5 @@ jobs:
           image-directory: ${{ inputs.image-directory }}
           extra-repositories: ${{ inputs.extra-repositories }}
           extra-architectures: ${{ inputs.extra-architectures }}
+          repository: ${{ inputs.repository }}
           git-tag: ${{ steps.refs.outputs.git_tag }}
