@@ -53,6 +53,14 @@ DOCUMENTATION = '''
         ini:
           - key: inventory_dump_file
             section: site_yaml
+      html_dump_file:
+        description: >
+          Write a self-contained HTML inventory visualisation to this file.
+        type: string
+        default: ""
+        ini:
+          - key: html_dump_file
+            section: site_yaml
       site_files:
         description: a list of valid filenames for the site inventory
         type: list
@@ -368,7 +376,8 @@ class InventoryModule(BaseInventoryPlugin):
             "hosts": self.get_option('hosts_key'),
             "networks_templates": self.get_option('networks_key')+"_templates",
             "groups_templates": self.get_option('groups_key')+"_templates",
-            "hosts_templates": self.get_option('hosts_key')+"_templates"
+            "hosts_templates": self.get_option('hosts_key')+"_templates",
+            "annotation_types": "annotation_types",
             }
 
         keys=[]
@@ -388,12 +397,23 @@ class InventoryModule(BaseInventoryPlugin):
             parser, parsed_data=self._sanitise_hosts_data(parsed_data, valid_keys, parser)
             parser, parsed_data=self._synthesize_host_network_metadata(parsed_data, valid_keys, parser)
             parser, parsed_data=self._preprocess_hosts(parsed_data, valid_keys, parser)
+            parser, parsed_data=self._synthesize_host_topology(parsed_data, valid_keys, parser)
         else:
             raise AnsibleParserError("No hosts key (%s) found, can't continue." % valid_keys['hosts'])
 
         if self.get_option('dump_file') != "":
             with open(self.get_option('dump_file'), "w") as inventoryDump:
                 inventoryDump.write(json.dumps(parsed_data, indent=4, sort_keys = True))
+
+        if self.get_option('html_dump_file') != "":
+            import importlib.util as _ilu, os as _os
+            _spec = _ilu.spec_from_file_location(
+                "inventory_html",
+                _os.path.join(_os.path.dirname(__file__), "inventory_html.py"))
+            _mod = _ilu.module_from_spec(_spec)
+            _spec.loader.exec_module(_mod)
+            with open(self.get_option('html_dump_file'), "w") as _f:
+                _f.write(_mod.generate(parsed_data))
 
         if valid_keys['default_vars'] in keys:
             parser=self._add_default_vars(parsed_data, valid_keys, parser)
@@ -1158,6 +1178,139 @@ structures provided by this. '''
                 ext = self._extension_registry[host_type]
                 if hasattr(ext, 'preprocess_host'):
                     ext.preprocess_host(self, host, host_def, data, valid_keys, parser)
+        return parser, data
+
+    def _synthesize_host_topology(self, data, valid_keys, parser):
+        ''' Synthesize topology metadata across hosts.
+
+        1. Populate guests: list on physical hosts from machine: backlinks.
+        2. Inherit rack for LXC/KVM from machine host
+        3. Inherit racks for k3s-pod from the referenced k3s cluster server.
+        4. Propagate host-level switch:/port: to interfaces lacking them.
+        5. Inherit switch/port from uplink interfaces to virtual interfaces
+           (VLAN, bridge) on the same host that lack explicit switch/port.
+
+        Must be called after _preprocess_hosts.
+        '''
+        hosts = data.get(valid_keys['hosts'], {})
+
+        # Step 1: build machine → guests index
+        machine_guests = {}
+        for host_name, host_def in hosts.items():
+            if not isinstance(host_def, dict):
+                continue
+            machine = host_def.get('machine')
+            if machine and machine in hosts:
+                machine_guests.setdefault(machine, [])
+                if host_name not in machine_guests[machine]:
+                    machine_guests[machine].append(host_name)
+
+        for machine_name, guests in machine_guests.items():
+            data[valid_keys['hosts']][machine_name]['guests'] = sorted(guests)
+
+        # Helper: chase machine chain to resolve rack
+        def _get_machine_rack(host_name, visited=None):
+            if visited is None:
+                visited = set()
+            if host_name in visited:
+                return None
+            visited.add(host_name)
+            h = hosts.get(host_name)
+            if not isinstance(h, dict):
+                return None
+            rack = h.get('rack')
+            if rack is not None:
+                return rack
+            parent = h.get('machine')
+            if parent:
+                return _get_machine_rack(parent, visited)
+            return None
+
+        # Step 2: LXC/KVM rack inheritance from physical host
+        virtual_types = {'lxc', 'kvm', 'vm'}
+        for host_name, host_def in hosts.items():
+            if not isinstance(host_def, dict):
+                continue
+            if host_def.get('type') in virtual_types and 'rack' not in host_def:
+                machine = host_def.get('machine')
+                if machine:
+                    rack = _get_machine_rack(machine)
+                    if rack is not None:
+                        data[valid_keys['hosts']][host_name]['rack'] = rack
+
+        # Step 3: k3s-pod racks from cluster server host
+        # TODO, This should be implemented in the k3s plugin - but for a
+        # quick and dirty proof of concept we stick it here for now
+        for host_name, host_def in hosts.items():
+            if not isinstance(host_def, dict):
+                continue
+            if host_def.get('type') != 'k3s-pod':
+                continue
+            k3s = host_def.get('k3s')
+            if not isinstance(k3s, dict):
+                continue
+            cluster = k3s.get('cluster')
+            if not cluster:
+                continue
+            # cluster value is the inventory hostname of the k3s server
+            cluster_host = hosts.get(cluster)
+            rack = cluster_host.get('rack') if isinstance(cluster_host, dict) else None
+            if rack is not None:
+                data[valid_keys['hosts']][host_name]['rack'] = rack
+                data[valid_keys['hosts']][host_name]['racks'] = [rack]
+
+        # Steps 4 & 5: switch/port propagation
+        for host_name, host_def in hosts.items():
+            if not isinstance(host_def, dict):
+                continue
+            networks = host_def.get('networks')
+            if not isinstance(networks, dict):
+                continue
+
+            host_switch = host_def.get('switch')
+            host_port = host_def.get('port')
+
+            # Collect uplink interfaces: have explicit switch + port != -1
+            uplinks = []
+            for if_key, iface in networks.items():
+                if not isinstance(iface, dict):
+                    continue
+                sw = iface.get('switch')
+                pt = iface.get('port')
+                if sw is not None and (pt is None or pt != -1):
+                    uplinks.append((if_key, sw, pt))
+
+            for if_key, iface in networks.items():
+                if not isinstance(iface, dict):
+                    continue
+                sw = iface.get('switch')
+                pt = iface.get('port')
+
+                # Step 4: apply host-level switch/port
+                if sw is None and host_switch is not None:
+                    sw = host_switch
+                    data[valid_keys['hosts']][host_name]['networks'][if_key]['switch'] = sw
+                if pt is None and host_port is not None and host_port != -1:
+                    pt = host_port
+                    data[valid_keys['hosts']][host_name]['networks'][if_key]['port'] = pt
+
+                # Step 5: inherit from physical uplinks (skip uplink ifaces themselves)
+                if sw is None and uplinks:
+                    other_uplinks = [(k, s, p) for k, s, p in uplinks if k != if_key]
+                    if other_uplinks:
+                        if len(other_uplinks) == 1:
+                            sw = other_uplinks[0][1]
+                            data[valid_keys['hosts']][host_name]['networks'][if_key]['switch'] = sw
+                            if pt is None and other_uplinks[0][2] is not None and other_uplinks[0][2] != -1:
+                                data[valid_keys['hosts']][host_name]['networks'][if_key]['port'] = other_uplinks[0][2]
+                        else:
+                            seen = set()
+                            sw_list = [s for _, s, _ in other_uplinks
+                                       if not (s in seen or seen.add(s))]
+                            # Unwrap single-element list to a plain string
+                            sw_val = sw_list[0] if len(sw_list) == 1 else sw_list
+                            data[valid_keys['hosts']][host_name]['networks'][if_key]['switch'] = sw_val
+
         return parser, data
 
     def _parse_hosts(self, data, parser, dryrun, valid_keys):

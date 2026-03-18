@@ -1,0 +1,1217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ansible Inventory</title>
+<script>__VIS_NETWORK_JS__</script>
+<script id="inv-data" type="application/json">__INVENTORY_JSON__</script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;font-size:14px;color:#333;background:#f4f6f8;min-height:100vh}
+a{color:inherit}
+
+/* ---- header ---- */
+header{background:#2c3e50;color:#fff;padding:10px 20px;display:flex;align-items:center;gap:14px}
+header h1{font-size:1.1rem;font-weight:600;letter-spacing:.02em}
+#gen-time{font-size:.75rem;opacity:.65;margin-left:auto}
+
+/* ---- tabs ---- */
+.tabs{display:flex;background:#34495e;border-bottom:2px solid #1abc9c}
+.tab-btn{background:none;border:none;color:#aaa;padding:9px 22px;cursor:pointer;font-size:13px;font-weight:500;transition:background .15s,color .15s}
+.tab-btn:hover{background:#3d566e;color:#fff}
+.tab-btn.active{color:#fff;border-bottom:2px solid #1abc9c;margin-bottom:-2px}
+
+/* ---- layout ---- */
+.tab-pane{padding:16px 20px}
+.hidden{display:none!important}
+
+/* ---- summary bar ---- */
+.summary-bar{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.stat-card{background:#fff;border:1px solid #dde;border-radius:7px;padding:12px 20px;text-align:center;min-width:110px;box-shadow:0 1px 3px rgba(0,0,0,.06);cursor:pointer;transition:box-shadow .15s,border-color .15s}
+.stat-card:hover{box-shadow:0 3px 10px rgba(0,0,0,.13);border-color:#1abc9c}
+.stat-card.active{border-color:#1abc9c;box-shadow:0 0 0 2px #1abc9c44}
+.stat-card .num{display:block;font-size:2rem;font-weight:700;color:#2c3e50;line-height:1.1}
+.stat-card .lbl{font-size:.75rem;color:#888;margin-top:2px}
+
+/* ---- legend ---- */
+.legend{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:.75rem;cursor:pointer;padding:3px 7px;border-radius:5px;border:1px solid transparent;transition:background .12s,border-color .12s}
+.legend-item:hover{background:#eef;border-color:#ccd}
+.legend-item.active{background:#e0f7f0;border-color:#1abc9c;font-weight:600}
+.legend-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+
+/* ---- group chips ---- */
+.group-chips{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;padding:8px 10px;background:#f9fafb;border:1px solid #dde;border-radius:6px}
+.group-chip{padding:3px 10px;border-radius:12px;font-size:.75rem;cursor:pointer;background:#e8edf2;border:1px solid transparent;transition:background .1s,border-color .1s}
+.group-chip:hover{background:#d0dce8}
+.group-chip.active{background:#e0f7f0;border-color:#1abc9c;font-weight:600}
+
+/* ---- filter bar ---- */
+.filter-bar{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.filter-bar input,.filter-bar select{padding:6px 10px;border:1px solid #ccd;border-radius:5px;font-size:13px;background:#fff}
+.filter-bar input{flex:1;min-width:180px}
+
+/* ---- host table ---- */
+.table-wrap{overflow-x:auto;border-radius:7px;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+#host-table{width:100%;border-collapse:collapse;background:#fff}
+#host-table th{background:#2c3e50;color:#fff;padding:8px 12px;text-align:left;cursor:pointer;user-select:none;white-space:nowrap;font-weight:500;font-size:13px}
+#host-table th:hover{background:#3d566e}
+#host-table th.sort-asc::after{content:' ▲';font-size:.7em;opacity:.8}
+#host-table th.sort-desc::after{content:' ▼';font-size:.7em;opacity:.8}
+#host-table td{padding:7px 12px;border-bottom:1px solid #eef;vertical-align:middle}
+#host-table tr:last-child td{border-bottom:none}
+#host-table tbody tr:hover td{background:#f5f8ff}
+
+/* ---- badge / code ---- */
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.72rem;font-weight:600;letter-spacing:.01em}
+code{font-family:'SF Mono',ui-monospace,monospace;font-size:.82em;background:#eef;padding:1px 5px;border-radius:3px;color:#2c3e50}
+
+/* ---- rack view ---- */
+.rack-section{margin-bottom:24px}
+.rack-title{font-size:.95rem;font-weight:700;color:#2c3e50;padding:6px 0;border-bottom:2px solid #2c3e50;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.rack-count{font-size:.75rem;font-weight:400;color:#888}
+.rack-grid{display:flex;flex-wrap:wrap;gap:8px}
+.host-card{background:#fff;border:1px solid #dde;border-radius:7px;padding:8px 12px;display:flex;align-items:center;gap:8px;box-shadow:0 1px 3px rgba(0,0,0,.05);transition:box-shadow .15s}
+.host-card:hover{box-shadow:0 2px 8px rgba(0,0,0,.1)}
+.host-card .hname{font-weight:500}
+.host-card .hip{font-size:.78rem;color:#888;margin-left:auto;padding-left:8px}
+
+/* ---- networks view ---- */
+.net-layout{display:flex;gap:0;height:calc(100vh - 130px);min-height:400px}
+.net-sidebar{width:260px;flex-shrink:0;border:1px solid #dde;border-radius:7px 0 0 7px;background:#fff;display:flex;flex-direction:column;overflow:hidden}
+.net-detail{flex:1;padding:0 0 0 16px;overflow-y:auto}
+#net-list{list-style:none;overflow-y:auto;flex:1}
+.net-item{padding:9px 14px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:13px;transition:background .1s}
+.net-item:hover{background:#f5f8ff}
+.net-item.active{background:#e0f7f0;border-left:3px solid #1abc9c;padding-left:11px}
+.net-item .ni-name{font-weight:500}
+.net-item .ni-meta{font-size:.74rem;color:#888;margin-top:1px}
+.net-detail-title{font-size:1rem;font-weight:700;color:#2c3e50;margin-bottom:4px}
+.net-detail-meta{font-size:.8rem;color:#666;margin-bottom:12px;display:flex;gap:14px;flex-wrap:wrap}
+.net-detail-meta span{display:flex;align-items:center;gap:4px}
+
+/* ---- diagram ---- */
+.diagram-controls{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;flex-shrink:0}
+.diagram-controls button{padding:5px 12px;border:1px solid #ccd;border-radius:5px;background:#fff;cursor:pointer;font-size:13px}
+.diagram-controls button:hover{background:#eef}
+.diagram-controls label{font-size:13px;display:flex;align-items:center;gap:4px;cursor:pointer}
+#tab-diagram,#tab-switch{display:flex;flex-direction:column;height:calc(100vh - 84px);box-sizing:border-box}
+#network-diagram,#switch-diagram{flex:1;min-height:0;border:1px solid #dde;border-radius:7px;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+
+/* ---- host-link (clickable host names everywhere) ---- */
+.host-link{cursor:pointer;border-bottom:1px dotted #aaa;display:inline;transition:color .1s,border-color .1s}
+.host-link:hover{color:#0e8870;border-bottom-color:#1abc9c}
+
+/* ---- host detail panel ---- */
+#hd-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.18);z-index:199;display:none}
+#hd-backdrop.open{display:block}
+#host-detail-panel{position:fixed;top:0;right:0;bottom:0;width:440px;max-width:100vw;background:#fff;box-shadow:-4px 0 24px rgba(0,0,0,.18);z-index:200;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .22s ease}
+#host-detail-panel.open{transform:translateX(0)}
+.hd-header{background:#2c3e50;color:#fff;padding:11px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0}
+.hd-header .hd-title{font-size:1rem;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hd-close{background:none;border:none;color:#fff;font-size:1.1rem;line-height:1;cursor:pointer;opacity:.7;padding:3px 7px;border-radius:3px}
+.hd-close:hover{opacity:1;background:rgba(255,255,255,.2)}
+.hd-body{overflow-y:auto;flex:1;padding:12px 16px;font-size:13px}
+.hd-section-title{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#888;margin:14px 0 5px;padding-bottom:3px;border-bottom:1px solid #eee}
+.hd-row{display:flex;align-items:baseline;padding:3px 0;gap:6px;border-bottom:1px solid #f8f8f8}
+.hd-lbl{font-size:.78rem;color:#888;width:86px;flex-shrink:0}
+.hd-iface-table{width:100%;border-collapse:collapse;font-size:.76rem;margin-top:3px}
+.hd-iface-table th{background:#f0f2f5;padding:4px 7px;text-align:left;font-weight:500;color:#555}
+.hd-iface-table td{padding:4px 7px;border-bottom:1px solid #f4f4f4;vertical-align:top}
+.hd-iface-table tr:last-child td{border-bottom:none}
+.hd-guests{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+.guest-chip{padding:3px 10px;border-radius:10px;font-size:.76rem;cursor:pointer;border:1px solid rgba(0,0,0,.08);transition:box-shadow .12s}
+.guest-chip:hover{box-shadow:0 1px 5px rgba(0,0,0,.18)}
+
+/* ---- workloads tab ---- */
+.wl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;align-items:start}
+.wl-card{background:#fff;border:1px solid #dde;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.wl-card-header{background:#34495e;color:#fff;padding:9px 14px;display:flex;align-items:center;gap:8px}
+.wl-card-body{padding:0}
+.wl-type-group{padding:6px 14px 4px}
+.wl-type-lbl{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#888;margin-bottom:3px}
+.wl-guest-row{display:flex;align-items:center;gap:8px;padding:5px 14px;border-top:1px solid #f2f2f2;cursor:pointer;transition:background .1s}
+.wl-guest-row:hover{background:#f5f8ff}
+.wl-guest-name{font-weight:500;flex:1}
+.wl-ip{font-size:.75rem;color:#888;font-family:monospace}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>&#x1F5C2; Ansible Inventory</h1>
+  <span id="gen-time"></span>
+</header>
+
+<nav class="tabs">
+  <button class="tab-btn active" data-tab="overview">Overview</button>
+  <button class="tab-btn" data-tab="rack">By Rack</button>
+  <button class="tab-btn" data-tab="networks">Networks</button>
+  <button class="tab-btn" data-tab="diagram">Network Diagram</button>
+  <button class="tab-btn" data-tab="switch">Switch View</button>
+  <button class="tab-btn" data-tab="workloads">Workloads</button>
+</nav>
+
+<div id="tab-overview" class="tab-pane">
+  <div class="summary-bar">
+    <div class="stat-card" data-action="clear-filters"><span class="num" id="stat-hosts">0</span><div class="lbl">Hosts</div></div>
+    <div class="stat-card" data-action="tab-networks"><span class="num" id="stat-nets">0</span><div class="lbl">Networks</div></div>
+    <div class="stat-card" data-action="expand-types"><span class="num" id="stat-types">0</span><div class="lbl">Types</div></div>
+    <div class="stat-card" data-action="tab-rack"><span class="num" id="stat-racks">0</span><div class="lbl">Racks</div></div>
+    <div class="stat-card" data-action="focus-groups"><span class="num" id="stat-groups">0</span><div class="lbl">Groups</div></div>
+  </div>
+  <div class="legend" id="type-legend"></div>
+  <div class="group-chips hidden" id="group-chips"></div>
+  <div class="filter-bar">
+    <input type="search" id="host-filter" placeholder="Filter by name, IP or group…">
+    <select id="type-filter"><option value="">All types</option></select>
+    <select id="rack-filter"><option value="">All racks</option></select>
+  </div>
+  <div class="table-wrap">
+    <table id="host-table">
+      <thead><tr>
+        <th data-col="name">Hostname</th>
+        <th data-col="type">Type</th>
+        <th data-col="rack">Rack</th>
+        <th data-col="ip">Primary IP</th>
+        <th data-col="nets">Networks</th>
+        <th data-col="groups">Groups</th>
+        <th data-col="serial">Serial</th>
+      </tr></thead>
+      <tbody id="host-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div id="tab-rack" class="tab-pane hidden">
+  <div id="rack-container"></div>
+</div>
+
+<div id="tab-networks" class="tab-pane hidden">
+  <div class="net-layout">
+    <aside class="net-sidebar">
+      <div style="padding:8px;border-bottom:1px solid #dde">
+        <input type="search" id="net-search" placeholder="Filter networks…" style="width:100%;padding:5px 8px;border:1px solid #ccd;border-radius:5px;font-size:13px">
+      </div>
+      <ul id="net-list"></ul>
+    </aside>
+    <div class="net-detail">
+      <div id="net-detail-header" style="margin-bottom:12px">
+        <p style="color:#888;font-size:13px">Select a network from the list to see its hosts.</p>
+      </div>
+      <div class="table-wrap" id="net-host-table-wrap" style="display:none">
+        <table id="net-host-table" style="width:100%;border-collapse:collapse;background:#fff">
+          <thead><tr>
+            <th style="background:#2c3e50;color:#fff;padding:8px 12px;text-align:left;font-size:13px;font-weight:500">Hostname</th>
+            <th style="background:#2c3e50;color:#fff;padding:8px 12px;text-align:left;font-size:13px;font-weight:500">Type</th>
+            <th style="background:#2c3e50;color:#fff;padding:8px 12px;text-align:left;font-size:13px;font-weight:500">Interface</th>
+            <th style="background:#2c3e50;color:#fff;padding:8px 12px;text-align:left;font-size:13px;font-weight:500">IP Address</th>
+            <th style="background:#2c3e50;color:#fff;padding:8px 12px;text-align:left;font-size:13px;font-weight:500">Switch</th>
+            <th style="background:#2c3e50;color:#fff;padding:8px 12px;text-align:left;font-size:13px;font-weight:500">Port</th>
+          </tr></thead>
+          <tbody id="net-host-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="tab-switch" class="tab-pane hidden">
+  <div class="diagram-controls">
+    <button id="sw-btn-fit">Fit view</button>
+    <label><input type="checkbox" id="sw-cb-physics" checked> Physics</label>
+    <label><input type="checkbox" id="sw-cb-labels" checked> Labels</label>
+    <label><input type="checkbox" id="sw-cb-unconnected"> Show unconnected hosts</label>
+    <span style="font-size:12px;color:#888;margin-left:8px">Scroll to zoom · Drag to pan · Click node to highlight</span>
+  </div>
+  <div id="switch-diagram"></div>
+</div>
+
+<div id="tab-workloads" class="tab-pane hidden">
+  <div id="workloads-container" style="padding-top:4px"></div>
+</div>
+
+<div id="hd-backdrop"></div>
+<div id="host-detail-panel">
+  <div class="hd-header">
+    <span class="hd-title" id="hd-title"></span>
+    <button class="hd-close" id="hd-close" title="Close">&#x2715;</button>
+  </div>
+  <div class="hd-body" id="hd-body"></div>
+</div>
+
+<div id="tab-diagram" class="tab-pane hidden">
+  <div class="diagram-controls">
+    <button id="btn-toggle-nets">Hide networks</button>
+    <select id="net-diagram-filter" style="padding:5px 8px;border:1px solid #ccd;border-radius:5px;font-size:13px;background:#fff"><option value="">All networks</option></select>
+    <button id="btn-fit">Fit view</button>
+    <label><input type="checkbox" id="cb-physics" checked> Physics</label>
+    <label><input type="checkbox" id="cb-labels" checked> Labels</label>
+    <label><input type="checkbox" id="cb-unconnected"> Show unconnected</label>
+    <span style="font-size:12px;color:#888;margin-left:8px">Scroll to zoom · Drag to pan · Click node to highlight</span>
+  </div>
+  <div id="network-diagram"></div>
+</div>
+
+<script>
+(function () {
+'use strict';
+
+// ── Data ──────────────────────────────────────────────────────────────────────
+const INV            = JSON.parse(document.getElementById('inv-data').textContent);
+const hosts          = INV.hosts   || {};
+const networks       = INV.networks || {};
+const annotationTypes = INV.annotation_types || {};
+
+// ── Type colours (Tableau-inspired) ──────────────────────────────────────────
+const TYPE_COLOR = {
+  server:      '#4e79a7',
+  workstation: '#59a14f',
+  notebook:    '#76b7b2',
+  lxc:         '#f28e2b',
+  kvm:         '#e15759',
+  'k3s-pod':   '#b07aa1',
+  ilo:         '#9c755f',
+  ipmi:        '#9c755f',
+  dns:         '#ff9da7',
+  notebook:    '#76b7b2',
+};
+function typeColor(t) { return TYPE_COLOR[t] || '#bab0ac'; }
+function contrastFg(hex) {
+  // simple luminance check: return black or white
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return (r*299 + g*587 + b*114) / 1000 > 128 ? '#222' : '#fff';
+}
+function typeBadge(t) {
+  const bg = typeColor(t);
+  return `<span class="badge" style="background:${bg};color:${contrastFg(bg)}">${t||'?'}</span>`;
+}
+function hostLink(name) {
+  return `<span class="host-link" data-host="${name}">${name}</span>`;
+}
+
+function renderAnnotation(type, value) {
+  // Built-in plain-text types
+  if (['note', 'text', 'comment'].includes(type)) {
+    return `<span style="color:#444">${value}</span>`;
+  }
+  // Built-in URL/link type: value is a string URL or {href, label}
+  if (['url', 'link'].includes(type)) {
+    const href  = (typeof value === 'object') ? value.href  : value;
+    const label = (typeof value === 'object') ? value.label : value;
+    return `<a href="${href}" target="_blank" rel="noopener" style="color:#0e8870">${label}</a>`;
+  }
+  // Configured type with url_template
+  const cfg = annotationTypes[type];
+  if (cfg && cfg.url_template) {
+    const url   = cfg.url_template.replace('{}', encodeURIComponent(value));
+    const label = cfg.label ? `${cfg.label}: ${value}` : `${type}: ${value}`;
+    return `<a href="${url}" target="_blank" rel="noopener" style="color:#0e8870">${label}</a>`;
+  }
+  // Unknown type: show as plain label: value
+  return `<span style="color:#888;font-size:.78rem">${type}:</span> <span>${value}</span>`;
+}
+
+// ── Host helpers ──────────────────────────────────────────────────────────────
+const _OOB_IFACE_RE  = /\b(ilo|ipmi|drac|idrac|bmc)\b/i;
+const _MGMT_IFACE_RE = /\b(mgmt|cntmgmt)\b/i;
+function _ifaceTier(key, iface) {
+  // Returns 0 = normal, 1 = mgmt, 2 = out-of-band (ilo/ipmi/drac/bmc)
+  const net = iface.vlan || iface.network || '';
+  if (_OOB_IFACE_RE.test(key) || _OOB_IFACE_RE.test(net))  return 2;
+  if (_MGMT_IFACE_RE.test(key) || _MGMT_IFACE_RE.test(net)) return 1;
+  return 0;
+}
+
+function getPrimaryIP(host) {
+  const nets = host.networks || {};
+  // Three passes: normal → mgmt → out-of-band
+  for (const tier of [0, 1, 2]) {
+    for (const [key, iface] of Object.entries(nets)) {
+      if (_ifaceTier(key, iface) === tier && iface.ipv4) return iface.ipv4.replace(/\/.*$/, '');
+    }
+    for (const [key, iface] of Object.entries(nets)) {
+      if (_ifaceTier(key, iface) === tier && typeof iface.ipv6 === 'string') return iface.ipv6.replace(/\/.*$/, '');
+    }
+  }
+  return '';
+}
+
+function getAllIPs(host) {
+  const ips = [];
+  for (const iface of Object.values(host.networks || {})) {
+    if (iface.ipv4) ips.push(iface.ipv4.replace(/\/.*$/, ''));
+    if (typeof iface.ipv6 === 'string') ips.push(iface.ipv6.replace(/\/.*$/, ''));
+    if (iface.addresses) {
+      for (const addr of Object.keys(iface.addresses)) ips.push(addr.replace(/\/.*$/, ''));
+    }
+  }
+  return ips;
+}
+
+function getGroups(host) {
+  const g = host.groups || [];
+  if (typeof g === 'string') return g.split(',').map(s => s.trim()).filter(Boolean);
+  return Array.isArray(g) ? [...g] : [];
+}
+
+function getIfaceNets(host) {
+  const seen = new Set();
+  for (const iface of Object.values(host.networks || {})) {
+    const n = iface.vlan || iface.network;
+    if (n) seen.add(n);
+  }
+  return [...seen];
+}
+
+// ── Derived data ──────────────────────────────────────────────────────────────
+const hostList = Object.entries(hosts);
+const allTypes  = [...new Set(hostList.map(([,h]) => h.type).filter(Boolean))].sort();
+const allRacks  = [...new Set(hostList.map(([,h]) =>
+  h.rack !== undefined ? String(h.rack) : null).filter(Boolean))].sort((a,b) =>
+    isNaN(a)||isNaN(b) ? a.localeCompare(b) : +a - +b);
+const allGroups = new Set();
+hostList.forEach(([,h]) => getGroups(h).forEach(g => allGroups.add(g)));
+
+// Precompute k3s pods grouped by their cluster server hostname
+const k3sPodsByCluster = {};
+hostList.forEach(([name, h]) => {
+  if (h.type === 'k3s-pod') {
+    const cluster = (h.k3s || {}).cluster;
+    if (cluster) {
+      (k3sPodsByCluster[cluster] = k3sPodsByCluster[cluster] || []).push(name);
+    }
+  }
+});
+
+// ── Summary stats ─────────────────────────────────────────────────────────────
+document.getElementById('stat-hosts').textContent  = hostList.length;
+document.getElementById('stat-nets').textContent   = Object.keys(networks).length;
+document.getElementById('stat-types').textContent  = allTypes.length;
+document.getElementById('stat-racks').textContent  = allRacks.length;
+document.getElementById('stat-groups').textContent = allGroups.size;
+document.getElementById('gen-time').textContent    = 'Generated: ' + new Date().toLocaleString();
+
+// ── Legend ────────────────────────────────────────────────────────────────────
+const legendEl = document.getElementById('type-legend');
+allTypes.forEach(t => {
+  const div = document.createElement('div');
+  div.className = 'legend-item';
+  div.dataset.type = t;
+  div.innerHTML = `<span class="legend-dot" style="background:${typeColor(t)}"></span>${t}`;
+  div.addEventListener('click', () => {
+    const active = typeFilterEl.value === t;
+    typeFilterEl.value = active ? '' : t;
+    legendEl.querySelectorAll('.legend-item').forEach(li =>
+      li.classList.toggle('active', li.dataset.type === t && !active));
+    renderTable();
+  });
+  legendEl.appendChild(div);
+});
+
+// ── Group chips ───────────────────────────────────────────────────────────────
+function buildGroupChips(container) {
+  // Sort groups by member count descending, then alphabetically
+  const groupCounts = {};
+  hostList.forEach(([,h]) => getGroups(h).forEach(g => {
+    groupCounts[g] = (groupCounts[g] || 0) + 1;
+  }));
+  const sorted = Object.entries(groupCounts)
+    .sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0]));
+  sorted.forEach(([g, count]) => {
+    const chip = document.createElement('span');
+    chip.className = 'group-chip';
+    chip.textContent = `${g} (${count})`;
+    chip.dataset.group = g;
+    chip.addEventListener('click', () => {
+      const active = chip.classList.contains('active');
+      container.querySelectorAll('.group-chip').forEach(c => c.classList.remove('active'));
+      document.getElementById('host-filter').value = active ? '' : g;
+      if (!active) chip.classList.add('active');
+      renderTable();
+    });
+    container.appendChild(chip);
+  });
+}
+
+// ── Lazy-init flags (declared early so switchTab closure sees them) ────────────
+let diagramReady      = false;
+let switchDiagramReady = false;
+
+// ── Stat card clicks ──────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    const on = b.dataset.tab === name;
+    b.classList.toggle('active', on);
+  });
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
+  document.getElementById('tab-' + name).classList.remove('hidden');
+  if (name === 'diagram' && !diagramReady) { initDiagram(); diagramReady = true; }
+  if (name === 'switch' && !switchDiagramReady) { initSwitchDiagram(); switchDiagramReady = true; }
+}
+
+document.querySelectorAll('.stat-card').forEach(card => {
+  card.addEventListener('click', () => {
+    const action = card.dataset.action;
+    if (action === 'clear-filters') {
+      document.getElementById('host-filter').value = '';
+      typeFilterEl.value = '';
+      rackFilterEl.value = '';
+      legendEl.querySelectorAll('.legend-item').forEach(li => li.classList.remove('active'));
+      renderTable();
+      switchTab('overview');
+    } else if (action === 'tab-rack') {
+      switchTab('rack');
+    } else if (action === 'tab-networks') {
+      switchTab('networks');
+    } else if (action === 'tab-diagram') {
+      switchTab('diagram');
+    } else if (action === 'expand-types') {
+      switchTab('overview');
+      // Open the type filter dropdown
+      typeFilterEl.focus();
+      typeFilterEl.dispatchEvent(new MouseEvent('mousedown'));
+    } else if (action === 'focus-groups') {
+      switchTab('overview');
+      // Toggle the group chips panel
+      const chipsEl = document.getElementById('group-chips');
+      chipsEl.classList.toggle('hidden');
+      if (!chipsEl.classList.contains('hidden') && chipsEl.children.length === 0) {
+        buildGroupChips(chipsEl);
+      }
+    }
+  });
+});
+
+// ── Tab switching ─────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => switchTab(btn.dataset.tab));
+});
+
+// ── Overview: type + rack filters ─────────────────────────────────────────────
+const typeFilterEl = document.getElementById('type-filter');
+const rackFilterEl = document.getElementById('rack-filter');
+allTypes.forEach(t => {
+  const o = document.createElement('option'); o.value = t; o.textContent = t;
+  typeFilterEl.appendChild(o);
+});
+allRacks.forEach(r => {
+  const o = document.createElement('option'); o.value = r; o.textContent = 'Rack ' + r;
+  rackFilterEl.appendChild(o);
+});
+
+// ── Overview: sortable table ──────────────────────────────────────────────────
+let sortCol = 'name', sortAsc = true;
+
+function renderTable() {
+  const fText = document.getElementById('host-filter').value.toLowerCase();
+  const fType = typeFilterEl.value;
+  const fRack = rackFilterEl.value;
+
+  let rows = hostList.map(([name, h]) => ({
+    name,
+    type:   h.type   || '',
+    rack:   h.rack !== undefined ? String(h.rack) : '',
+    ip:     getPrimaryIP(h),
+    allIps: getAllIPs(h).join(' '),
+    nets:   getIfaceNets(h).join(', '),
+    groups: getGroups(h).join(', '),
+    serial: h.serial || '',
+  }));
+
+  if (fText) rows = rows.filter(r =>
+    r.name.toLowerCase().includes(fText) ||
+    r.allIps.includes(fText) ||
+    r.groups.toLowerCase().includes(fText) ||
+    r.nets.toLowerCase().includes(fText) ||
+    r.serial.toLowerCase().includes(fText));
+  if (fType) rows = rows.filter(r => r.type === fType);
+  if (fRack) rows = rows.filter(r => r.rack === fRack);
+
+  rows.sort((a, b) => {
+    const av = a[sortCol] ?? '', bv = b[sortCol] ?? '';
+    if (sortCol === 'rack') {
+      const an = parseFloat(av), bn = parseFloat(bv);
+      if (!isNaN(an) && !isNaN(bn)) return sortAsc ? an - bn : bn - an;
+    }
+    return sortAsc ? av.localeCompare(bv) : bv.localeCompare(av);
+  });
+
+  const tbody = document.getElementById('host-tbody');
+  tbody.innerHTML = '';
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      `<td><strong>${hostLink(r.name)}</strong></td>` +
+      `<td>${typeBadge(r.type)}</td>` +
+      `<td>${r.rack}</td>` +
+      `<td>${r.ip ? '<code>'+r.ip+'</code>' : ''}</td>` +
+      `<td style="font-size:.8em;color:#555">${r.nets}</td>` +
+      `<td style="font-size:.8em;color:#555">${r.groups}</td>` +
+      `<td><code style="font-size:.78em">${r.serial}</code></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+document.querySelectorAll('#host-table th').forEach(th => {
+  th.style.cursor = 'pointer';
+  th.addEventListener('click', () => {
+    if (sortCol === th.dataset.col) sortAsc = !sortAsc;
+    else { sortCol = th.dataset.col; sortAsc = true; }
+    document.querySelectorAll('#host-table th').forEach(t =>
+      t.classList.remove('sort-asc','sort-desc'));
+    th.classList.add(sortAsc ? 'sort-asc' : 'sort-desc');
+    renderTable();
+  });
+});
+document.getElementById('host-filter').addEventListener('input', () => {
+  // Deactivate group chips if text filter is cleared or changed
+  const chipsEl = document.getElementById('group-chips');
+  const val = document.getElementById('host-filter').value;
+  chipsEl.querySelectorAll('.group-chip').forEach(c =>
+    c.classList.toggle('active', c.dataset.group === val));
+  renderTable();
+});
+typeFilterEl.addEventListener('change', () => {
+  const v = typeFilterEl.value;
+  legendEl.querySelectorAll('.legend-item').forEach(li =>
+    li.classList.toggle('active', li.dataset.type === v && v !== ''));
+  renderTable();
+});
+rackFilterEl.addEventListener('change', renderTable);
+renderTable();
+// Default sort indicator
+document.querySelector('#host-table th[data-col="name"]').classList.add('sort-asc');
+
+// ── Rack view ─────────────────────────────────────────────────────────────────
+(function buildRackView() {
+  const byRack = {};
+  hostList.forEach(([name, host]) => {
+    const r = host.rack !== undefined ? String(host.rack) : '__none__';
+    (byRack[r] = byRack[r] || []).push({ name, host });
+  });
+
+  const keys = Object.keys(byRack).sort((a, b) => {
+    if (a === '__none__') return 1;
+    if (b === '__none__') return -1;
+    return (isNaN(a)||isNaN(b)) ? a.localeCompare(b) : +a - +b;
+  });
+
+  const container = document.getElementById('rack-container');
+  keys.forEach(rack => {
+    const items = byRack[rack].sort((a,b) => a.name.localeCompare(b.name));
+    const section = document.createElement('section');
+    section.className = 'rack-section';
+    const title = rack === '__none__' ? 'No rack assigned' : 'Rack ' + rack;
+    section.innerHTML =
+      `<h2 class="rack-title">${title} <span class="rack-count">${items.length} host${items.length!==1?'s':''}</span></h2>`;
+    const grid = document.createElement('div');
+    grid.className = 'rack-grid';
+    items.forEach(({ name, host }) => {
+      const ip = getPrimaryIP(host);
+      const bg = typeColor(host.type);
+      const card = document.createElement('div');
+      card.className = 'host-card';
+      card.innerHTML =
+        `<span class="badge" style="background:${bg};color:${contrastFg(bg)}">${host.type||'?'}</span>` +
+        `<span class="hname">${hostLink(name)}</span>` +
+        (ip ? `<code class="hip">${ip}</code>` : '') +
+        (host.serial ? `<code class="hip" style="color:#aaa">${host.serial}</code>` : '');
+      grid.appendChild(card);
+    });
+    section.appendChild(grid);
+    container.appendChild(section);
+  });
+})();
+
+// ── Host detail panel ─────────────────────────────────────────────────────────
+const hdPanel    = document.getElementById('host-detail-panel');
+const hdBackdrop = document.getElementById('hd-backdrop');
+
+function closeHostDetail() {
+  hdPanel.classList.remove('open');
+  hdBackdrop.classList.remove('open');
+}
+document.getElementById('hd-close').addEventListener('click', closeHostDetail);
+hdBackdrop.addEventListener('click', closeHostDetail);
+
+function showHostDetail(name) {
+  const host = hosts[name];
+  if (!host) return;
+
+  document.getElementById('hd-title').textContent = name;
+  let html = '';
+
+  // Basic info
+  html += `<div class="hd-row"><span class="hd-lbl">Type</span><span>${typeBadge(host.type)}</span></div>`;
+  if (host.rack !== undefined)
+    html += `<div class="hd-row"><span class="hd-lbl">Rack</span><span>${host.rack}</span></div>`;
+  if (host.racks && host.racks.length > 1)
+    html += `<div class="hd-row"><span class="hd-lbl">Racks</span><span>${host.racks.join(', ')}</span></div>`;
+  const grps = getGroups(host);
+  if (grps.length)
+    html += `<div class="hd-row"><span class="hd-lbl">Groups</span><span style="font-size:.8rem">${grps.join(', ')}</span></div>`;
+  if (host.serial)
+    html += `<div class="hd-row"><span class="hd-lbl">Serial</span><code>${host.serial}</code></div>`;
+  if (host.machine)
+    html += `<div class="hd-row"><span class="hd-lbl">Machine</span><span>${hostLink(host.machine)}</span></div>`;
+  const k3s = host.k3s;
+  if (k3s && k3s.cluster)
+    html += `<div class="hd-row"><span class="hd-lbl">K3s cluster</span><span>${hostLink(k3s.cluster)}</span></div>`;
+
+  // Interfaces
+  const nets = host.networks || {};
+  const ifKeys = Object.keys(nets).sort();
+  const meaningfulIf = ifKeys.filter(k => {
+    const f = nets[k];
+    return f && typeof f === 'object' && (f.ipv4 || f.ipv6 || f.hwaddr ||
+      (f.addresses && Object.keys(f.addresses).length) ||
+      f.switch || (f.vlan || f.network));
+  });
+  if (meaningfulIf.length) {
+    html += `<div class="hd-section-title">Interfaces</div>`;
+    html += `<table class="hd-iface-table"><thead><tr>` +
+            `<th>Interface</th><th>Addresses</th><th>Network</th><th>Switch / Port</th>` +
+            `</tr></thead><tbody>`;
+    meaningfulIf.forEach(ifk => {
+      const iface = nets[ifk];
+      const addrs = [];
+      if (iface.ipv4) addrs.push(iface.ipv4);
+      if (iface.ipv6) addrs.push(iface.ipv6);
+      if (iface.addresses) Object.keys(iface.addresses).forEach(a => { if (!addrs.includes(a)) addrs.push(a); });
+      const net = iface.vlan || iface.network || '';
+      const sw  = Array.isArray(iface.switch) ? iface.switch.join(', ') : (iface.switch || '');
+      const pt  = (iface.port !== undefined && iface.port !== -1) ? iface.port : '';
+      const swport = sw ? (pt !== '' ? `${sw} : ${pt}` : sw) : '';
+      html += `<tr>` +
+              `<td><code>${ifk}</code></td>` +
+              `<td><code style="font-size:.73rem">${addrs.join('<br>')}</code></td>` +
+              `<td>${net}</td>` +
+              `<td style="white-space:nowrap">${swport}</td>` +
+              `</tr>`;
+    });
+    html += `</tbody></table>`;
+  }
+
+  // Guests (VMs/containers)
+  const guests = host.guests || [];
+  if (guests.length) {
+    html += `<div class="hd-section-title">Guests (${guests.length})</div><div class="hd-guests">`;
+    guests.forEach(g => {
+      const gh = hosts[g] || {};
+      const bg = typeColor(gh.type); const fg = contrastFg(bg);
+      html += `<span class="guest-chip host-link" data-host="${g}" style="background:${bg};color:${fg}">${g}</span>`;
+    });
+    html += `</div>`;
+  }
+
+  // K3s pods on this cluster server
+  const pods = k3sPodsByCluster[name] || [];
+  if (pods.length) {
+    html += `<div class="hd-section-title">K3s Pods (${pods.length})</div><div class="hd-guests">`;
+    pods.slice().sort().forEach(p => {
+      const bg = typeColor('k3s-pod'); const fg = contrastFg(bg);
+      html += `<span class="guest-chip host-link" data-host="${p}" style="background:${bg};color:${fg}">${p}</span>`;
+    });
+    html += `</div>`;
+  }
+
+  // Annotations
+  const annotations = host.annotations || [];
+  if (annotations.length) {
+    html += `<div class="hd-section-title">Annotations</div>`;
+    annotations.forEach(item => {
+      if (!item || typeof item !== 'object') return;
+      const entries = Object.entries(item);
+      if (!entries.length) return;
+      const [type, value] = entries[0];
+      html += `<div class="hd-row" style="align-items:flex-start;gap:6px">${renderAnnotation(type, value)}</div>`;
+    });
+  }
+
+  document.getElementById('hd-body').innerHTML = html;
+  hdPanel.classList.add('open');
+  hdBackdrop.classList.add('open');
+}
+
+// Delegated click: any .host-link anywhere opens detail
+document.addEventListener('click', e => {
+  const link = e.target.closest('.host-link');
+  if (link && link.dataset.host) showHostDetail(link.dataset.host);
+});
+
+// ── Network diagram ────────────────────────────────────────────────────────────
+function initDiagram() {
+  const nodes = new vis.DataSet();
+  const edges = new vis.DataSet();
+
+  // Populate network filter dropdown
+  const filterSel = document.getElementById('net-diagram-filter');
+  Object.keys(networks).sort().forEach(net => {
+    const o = document.createElement('option'); o.value = net; o.textContent = net;
+    filterSel.appendChild(o);
+  });
+
+  // Network nodes (diamond shape, gold)
+  Object.keys(networks).forEach(net => {
+    nodes.add({
+      id:    'net:' + net,
+      label: net,
+      shape: 'diamond',
+      size:  22,
+      color: { background: '#f0b429', border: '#c98a00', highlight: { background: '#ffe066', border: '#c98a00' } },
+      font:  { size: 12, color: '#4a3800', bold: true },
+      group: '__network__',
+    });
+  });
+
+  // Pre-compute host→network edges; track which nets each host connects to
+  // hostNets: { hostName: Set<netName> }
+  const hostNets = {};
+  hostList.forEach(([name, host]) => {
+    const bg = typeColor(host.type);
+    const ip = getPrimaryIP(host);
+    nodes.add({
+      id:    'host:' + name,
+      label: name,
+      title: `<b>${name}</b><br>Type: ${host.type||'?'}${ip?'<br>IP: '+ip:''}${host.rack!==undefined?'<br>Rack: '+host.rack:''}`,
+      shape: 'dot',
+      size:  10,
+      color: { background: bg, border: bg, highlight: { background: bg, border: '#fff' } },
+      font:  { size: 11, color: '#333' },
+      group: host.type || 'unknown',
+    });
+
+    const seen = new Set();
+    Object.values(host.networks || {}).forEach(iface => {
+      const net = iface.vlan || iface.network;
+      if (net && !seen.has(net) && networks[net]) {
+        seen.add(net);
+        edges.add({
+          id:    `e:${name}:${net}`,
+          from:  'host:' + name,
+          to:    'net:' + net,
+          color: { color: '#ccc', highlight: '#1abc9c', opacity: 0.7 },
+          width: 1,
+        });
+      }
+    });
+    hostNets[name] = seen;
+  });
+
+  // Pre-hide unconnected hosts BEFORE creating the network so the initial
+  // physics stabilisation only runs over the connected set.
+  nodes.update(hostList.map(([name]) => {
+    const connected = (hostNets[name] || new Set()).size > 0;
+    return { id: 'host:' + name, hidden: !connected, physics: connected };
+  }));
+
+  const container = document.getElementById('network-diagram');
+  const visNet = new vis.Network(container, { nodes, edges }, {
+    physics: {
+      enabled: true,
+      barnesHut: { gravitationalConstant: -6000, centralGravity: 0.1,
+                   springLength: 120, springConstant: 0.04, damping: 0.2 },
+      stabilization: { iterations: 150 },
+    },
+    interaction: { hover: true, tooltipDelay: 80, multiselect: false },
+    nodes: { borderWidth: 1, shadow: false },
+    edges: { smooth: { type: 'continuous', roundness: 0.2 }, shadow: false },
+  });
+
+  // State
+  let netsVisible    = true;
+  let showUnconnected = false;
+  let activeFilter   = '';   // '' = all
+
+  function applyFilter() {
+    // Edge visibility
+    edges.update(edges.get().map(e => ({
+      id: e.id,
+      hidden: activeFilter ? !e.id.endsWith(':' + activeFilter) : false,
+    })));
+
+    // Determine which hosts are connected under current filter
+    const connected = new Set();
+    hostList.forEach(([name]) => {
+      const nets = hostNets[name] || new Set();
+      if (activeFilter ? nets.has(activeFilter) : nets.size > 0) connected.add(name);
+    });
+
+    // Network node visibility: hide non-selected when a filter is active.
+    // Use an explicit boolean — empty activeFilter short-circuits to '' which
+    // is falsy but not false, and vis-network may not un-hide on a '' → true
+    // transition.  Also restore physics so re-shown nodes re-join simulation.
+    nodes.update(Object.keys(networks).map(net => {
+      const hidden = !netsVisible || (activeFilter !== '' && net !== activeFilter);
+      return { id: 'net:' + net, hidden, physics: !hidden };
+    }));
+
+    // Host node visibility: unconnected hosts hidden or pushed to background
+    nodes.update(hostList.map(([name]) => {
+      const isConnected = connected.has(name);
+      return {
+        id:     'host:' + name,
+        hidden: !isConnected && !showUnconnected,
+        opacity: isConnected ? 1 : 0.25,
+        // Unconnected hosts: release from physics anchor so they drift away
+        physics: isConnected || showUnconnected,
+      };
+    }));
+  }
+
+  // Click: highlight neighbours; click host node to also open detail panel
+  visNet.on('click', params => {
+    if (!params.nodes.length) {
+      visNet.unselectAll();
+      nodes.update(nodes.get().map(n => ({ id: n.id, opacity: n.group === '__network__' ? 1 :
+        ((hostNets[n.id.replace('host:','')]||new Set()).size > 0 || activeFilter === '') ? 1 : 0.25 })));
+      return;
+    }
+    const selected = params.nodes[0];
+    if (selected.startsWith('host:')) showHostDetail(selected.slice(5));
+    const neighbours = new Set(visNet.getConnectedNodes(selected));
+    neighbours.add(selected);
+    nodes.update(nodes.get().map(n => ({ id: n.id, opacity: neighbours.has(n.id) ? 1 : 0.1 })));
+  });
+
+  // Controls
+  document.getElementById('btn-toggle-nets').addEventListener('click', function() {
+    netsVisible = !netsVisible;
+    this.textContent = netsVisible ? 'Hide networks' : 'Show networks';
+    applyFilter();
+  });
+  filterSel.addEventListener('change', () => {
+    activeFilter = filterSel.value;
+    applyFilter();
+    // Force re-layout: nodes that were hidden reappear at stale positions,
+    // so restart physics and fit once it settles.
+    visNet.once('stabilizationIterationsDone', () => visNet.fit({ animation: { duration: 600 } }));
+    visNet.stabilize(120);
+  });
+  document.getElementById('btn-fit').addEventListener('click', () => visNet.fit({ animation: true }));
+  document.getElementById('cb-physics').addEventListener('change', e =>
+    visNet.setOptions({ physics: { enabled: e.target.checked } }));
+  document.getElementById('cb-labels').addEventListener('change', e => {
+    const sz = e.target.checked ? 11 : 0;
+    nodes.update(nodes.get().map(n => ({ id: n.id, font: { size: sz } })));
+  });
+  document.getElementById('cb-unconnected').addEventListener('change', e => {
+    showUnconnected = e.target.checked;
+    applyFilter();
+  });
+}
+
+// ── Networks view ──────────────────────────────────────────────────────────────
+(function buildNetworksView() {
+  // Build an index: network name → [{host, iface, ifaceData}]
+  const netIndex = {};
+  hostList.forEach(([name, host]) => {
+    Object.entries(host.networks || {}).forEach(([iname, iface]) => {
+      const net = iface.vlan || iface.network;
+      if (!net) return;
+      if (!netIndex[net]) netIndex[net] = [];
+      netIndex[net].push({ host: name, hostData: host, iface: iname, ifaceData: iface });
+    });
+  });
+
+  // Sort network names: those present in networks{} first (have VLAN config), then others
+  const sortedNets = Object.keys(networks).sort();
+  const extraNets  = Object.keys(netIndex).filter(n => !networks[n]).sort();
+  const allNets    = [...sortedNets, ...extraNets];
+
+  const listEl    = document.getElementById('net-list');
+  const searchEl  = document.getElementById('net-search');
+  const detailHdr = document.getElementById('net-detail-header');
+  const tableWrap = document.getElementById('net-host-table-wrap');
+  const tbody     = document.getElementById('net-host-tbody');
+
+  function renderNetList(filter) {
+    listEl.innerHTML = '';
+    allNets.forEach(net => {
+      if (filter && !net.toLowerCase().includes(filter)) return;
+      const netCfg   = networks[net] || {};
+      const count    = (netIndex[net] || []).length;
+      const vlanId   = netCfg.vlan_id !== undefined ? 'VLAN ' + netCfg.vlan_id : '';
+      const subnets  = Object.keys(netCfg.subnets || {}).join(', ');
+      const meta     = [vlanId, subnets, count + ' host' + (count!==1?'s':'')].filter(Boolean).join(' · ');
+      const li = document.createElement('li');
+      li.className = 'net-item';
+      li.dataset.net = net;
+      li.innerHTML = `<div class="ni-name">${net}</div><div class="ni-meta">${meta}</div>`;
+      li.addEventListener('click', () => selectNetwork(net));
+      listEl.appendChild(li);
+    });
+  }
+
+  function selectNetwork(net) {
+    listEl.querySelectorAll('.net-item').forEach(li =>
+      li.classList.toggle('active', li.dataset.net === net));
+
+    const netCfg  = networks[net] || {};
+    const vlanId  = netCfg.vlan_id !== undefined ? netCfg.vlan_id : '—';
+    const subnets = Object.keys(netCfg.subnets || {});
+    const hosts   = netIndex[net] || [];
+
+    detailHdr.innerHTML =
+      `<div class="net-detail-title">${net}</div>` +
+      `<div class="net-detail-meta">` +
+      `<span>VLAN ID: <strong>${vlanId}</strong></span>` +
+      (subnets.length ? `<span>Subnets: <strong>${subnets.join(', ')}</strong></span>` : '') +
+      `<span>Hosts: <strong>${hosts.length}</strong></span>` +
+      `</div>`;
+
+    tbody.innerHTML = '';
+    hosts.sort((a,b) => a.host.localeCompare(b.host)).forEach(({ host, hostData, iface, ifaceData }) => {
+      const ip = ifaceData.ipv4 || ifaceData.ipv6 || '';
+      const sw = ifaceData.switch || '';
+      const port = (ifaceData.port !== undefined && ifaceData.port !== -1) ? ifaceData.port : '';
+      const bg = typeColor(hostData.type);
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        `<td style="padding:7px 12px;border-bottom:1px solid #eef"><strong>${hostLink(host)}</strong></td>` +
+        `<td style="padding:7px 12px;border-bottom:1px solid #eef">${typeBadge(hostData.type)}</td>` +
+        `<td style="padding:7px 12px;border-bottom:1px solid #eef;font-size:.82em;color:#555"><code>${iface}</code></td>` +
+        `<td style="padding:7px 12px;border-bottom:1px solid #eef">${ip ? '<code>'+ip+'</code>' : ''}</td>` +
+        `<td style="padding:7px 12px;border-bottom:1px solid #eef">${sw}</td>` +
+        `<td style="padding:7px 12px;border-bottom:1px solid #eef">${port}</td>`;
+      tbody.appendChild(tr);
+    });
+
+    tableWrap.style.display = hosts.length ? '' : 'none';
+    if (!hosts.length) {
+      detailHdr.innerHTML += '<p style="color:#888;font-size:13px;margin-top:8px">No hosts on this network.</p>';
+    }
+  }
+
+  renderNetList('');
+  searchEl.addEventListener('input', () => renderNetList(searchEl.value.toLowerCase()));
+})();
+
+// ── Switch diagram ─────────────────────────────────────────────────────────────
+function initSwitchDiagram() {
+  const nodes = new vis.DataSet();
+  const edges = new vis.DataSet();
+
+  // Collect all switch names and host→switch connections
+  // Map: switchName → Set of { hostName, port, vlan }
+  const switchMap = {};
+  const unconnected = [];
+
+  hostList.forEach(([name, host]) => {
+    let hasSwitch = false;
+    Object.entries(host.networks || {}).forEach(([iname, iface]) => {
+      const sw   = iface.switch;
+      const port = iface.port;
+      if (!sw || port === undefined || port === -1) return;
+      hasSwitch = true;
+      if (!switchMap[sw]) switchMap[sw] = [];
+      switchMap[sw].push({ host: name, hostData: host, port, vlan: iface.vlan || iface.network || '', iface: iname });
+    });
+    if (!hasSwitch) unconnected.push([name, host]);
+  });
+
+  // Switch nodes — square, teal
+  Object.keys(switchMap).sort().forEach(sw => {
+    nodes.add({
+      id:    'sw:' + sw,
+      label: sw,
+      shape: 'box',
+      size:  20,
+      color: { background: '#1abc9c', border: '#0e8870',
+               highlight: { background: '#2ecc71', border: '#0e8870' } },
+      font:  { size: 13, color: '#fff', bold: true },
+      group: '__switch__',
+    });
+  });
+
+  // Host nodes and edges — one edge per unique (host, switch, port)
+  const edgeSeen = new Set();
+  Object.entries(switchMap).forEach(([sw, conns]) => {
+    conns.forEach(({ host, hostData, port, vlan, iface }) => {
+      const edgeKey = `${host}|${sw}|${port}`;
+      if (edgeSeen.has(edgeKey)) return;
+      edgeSeen.add(edgeKey);
+
+      if (!nodes.get('host:' + host)) {
+        const bg = typeColor(hostData.type);
+        const ip = getPrimaryIP(hostData);
+        nodes.add({
+          id:    'host:' + host,
+          label: host,
+          title: `<b>${host}</b><br>Type: ${hostData.type||'?'}${ip?'<br>IP: '+ip:''}`,
+          shape: 'dot',
+          size:  10,
+          color: { background: bg, border: bg,
+                   highlight: { background: bg, border: '#fff' } },
+          font:  { size: 11, color: '#333' },
+          group: hostData.type || 'unknown',
+        });
+      }
+
+      const label = vlan ? `p${port}\n${vlan}` : `p${port}`;
+      edges.add({
+        from:  'host:' + host,
+        to:    'sw:'   + sw,
+        label,
+        font:  { size: 10, color: '#555', align: 'middle' },
+        color: { color: '#aaa', highlight: '#1abc9c', opacity: 0.8 },
+        width: 1.5,
+      });
+    });
+  });
+
+  // Unconnected hosts (hidden by default)
+  unconnected.forEach(([name, host]) => {
+    if (nodes.get('host:' + name)) return;
+    const bg = typeColor(host.type);
+    const ip = getPrimaryIP(host);
+    nodes.add({
+      id:     'host:' + name,
+      label:  name,
+      title:  `<b>${name}</b><br>Type: ${host.type||'?'}${ip?'<br>IP: '+ip:''}`,
+      shape:  'dot',
+      size:   8,
+      color:  { background: bg, border: bg,
+                highlight: { background: bg, border: '#fff' } },
+      font:   { size: 11, color: '#333' },
+      group:  host.type || 'unknown',
+      hidden: true,
+    });
+  });
+
+  const container = document.getElementById('switch-diagram');
+  const visNet = new vis.Network(container, { nodes, edges }, {
+    physics: {
+      enabled: true,
+      barnesHut: { gravitationalConstant: -8000, centralGravity: 0.3,
+                   springLength: 140, springConstant: 0.05, damping: 0.25 },
+      stabilization: { iterations: 200 },
+    },
+    interaction: { hover: true, tooltipDelay: 80 },
+    nodes: { borderWidth: 1 },
+    edges: {
+      smooth: { type: 'continuous', roundness: 0.2 },
+      font: { strokeWidth: 2, strokeColor: '#fff' },
+    },
+  });
+
+  // Click: highlight neighbours; click host node to also open detail panel
+  visNet.on('click', params => {
+    if (!params.nodes.length) { visNet.unselectAll(); nodes.update(nodes.get().map(n => ({ id: n.id, opacity: 1 }))); return; }
+    const selected = params.nodes[0];
+    if (selected.startsWith('host:')) showHostDetail(selected.slice(5));
+    const connected = new Set(visNet.getConnectedNodes(selected));
+    connected.add(selected);
+    nodes.update(nodes.get().map(n => ({ id: n.id, opacity: connected.has(n.id) ? 1 : 0.15 })));
+  });
+
+  document.getElementById('sw-btn-fit').addEventListener('click', () => visNet.fit({ animation: true }));
+  document.getElementById('sw-cb-physics').addEventListener('change', e =>
+    visNet.setOptions({ physics: { enabled: e.target.checked } }));
+  document.getElementById('sw-cb-labels').addEventListener('change', e => {
+    const sz = e.target.checked ? 11 : 0;
+    nodes.update(nodes.get().map(n => ({ id: n.id, font: { ...n.font, size: sz } })));
+  });
+  document.getElementById('sw-cb-unconnected').addEventListener('change', e => {
+    const show = e.target.checked;
+    const ids = unconnected.map(([name]) => 'host:' + name).filter(id => nodes.get(id));
+    nodes.update(ids.map(id => ({ id, hidden: !show })));
+  });
+}
+
+// ── Workloads view ─────────────────────────────────────────────────────────────
+(function buildWorkloadsView() {
+  const container = document.getElementById('workloads-container');
+
+  // Physical/server hosts that have guests
+  const machineHosts = hostList
+    .filter(([, h]) => h.guests && h.guests.length > 0)
+    .sort((a, b) => a[0].localeCompare(b[0]));
+
+  // K3s cluster servers that have pods
+  const k3sServers = Object.keys(k3sPodsByCluster).sort();
+
+  if (!machineHosts.length && !k3sServers.length) {
+    container.innerHTML = '<p style="color:#888;padding:20px">No workload hosts found.</p>';
+    return;
+  }
+
+  let html = '';
+
+  // ── VM / Container hosts ──
+  if (machineHosts.length) {
+    html += `<div class="hd-section-title" style="margin-top:0;font-size:.8rem">VM / Container Hosts</div>`;
+    html += `<div class="wl-grid">`;
+    machineHosts.forEach(([name, host]) => {
+      const ip  = getPrimaryIP(host);
+      const bg  = typeColor(host.type);
+      const fg  = contrastFg(bg);
+      // Group guests by type
+      const byType = {};
+      (host.guests || []).forEach(g => {
+        const t = (hosts[g] || {}).type || 'unknown';
+        (byType[t] = byType[t] || []).push(g);
+      });
+      html += `<div class="wl-card">` +
+              `<div class="wl-card-header">` +
+              `<span class="badge" style="background:${bg};color:${fg}">${host.type||'?'}</span>` +
+              `<span class="host-link" data-host="${name}" style="font-weight:600;flex:1;cursor:pointer;border-bottom:1px dotted rgba(255,255,255,.4)">${name}</span>` +
+              (ip ? `<code style="font-size:.74rem;color:#aaa;background:none">${ip}</code>` : '') +
+              `<span style="font-size:.76rem;color:#aaa">${host.guests.length} guest${host.guests.length!==1?'s':''}</span>` +
+              `</div><div class="wl-card-body">`;
+      Object.entries(byType).sort((a, b) => a[0].localeCompare(b[0])).forEach(([type, gnames]) => {
+        html += `<div class="wl-type-group"><div class="wl-type-lbl">${type}</div></div>`;
+        gnames.slice().sort().forEach(g => {
+          const gip = getPrimaryIP(hosts[g] || {});
+          html += `<div class="wl-guest-row host-link" data-host="${g}">` +
+                  `<span class="wl-guest-name">${g}</span>` +
+                  (gip ? `<span class="wl-ip">${gip}</span>` : '') +
+                  `</div>`;
+        });
+      });
+      html += `</div></div>`;
+    });
+    html += `</div>`;
+  }
+
+  // ── K3s cluster servers ──
+  if (k3sServers.length) {
+    html += `<div class="hd-section-title" style="${machineHosts.length ? 'margin-top:20px' : 'margin-top:0'};font-size:.8rem">K3s Clusters</div>`;
+    html += `<div class="wl-grid">`;
+    k3sServers.forEach(clusterName => {
+      const pods = k3sPodsByCluster[clusterName];
+      const host = hosts[clusterName] || {};
+      const ip   = getPrimaryIP(host);
+      const bg   = typeColor(host.type);
+      const fg   = contrastFg(bg);
+      html += `<div class="wl-card">` +
+              `<div class="wl-card-header">` +
+              (host.type ? `<span class="badge" style="background:${bg};color:${fg}">${host.type}</span>` : '') +
+              `<span class="host-link" data-host="${clusterName}" style="font-weight:600;flex:1;cursor:pointer;border-bottom:1px dotted rgba(255,255,255,.4)">${clusterName}</span>` +
+              (ip ? `<code style="font-size:.74rem;color:#aaa;background:none">${ip}</code>` : '') +
+              `<span style="font-size:.76rem;color:#aaa">${pods.length} pod${pods.length!==1?'s':''}</span>` +
+              `</div><div class="wl-card-body">`;
+      pods.slice().sort().forEach(podName => {
+        const pod = hosts[podName] || {};
+        const podip = getPrimaryIP(pod);
+        html += `<div class="wl-guest-row host-link" data-host="${podName}">` +
+                `<span class="wl-guest-name">${podName}</span>` +
+                (podip ? `<span class="wl-ip">${podip}</span>` : '') +
+                `</div>`;
+      });
+      html += `</div></div>`;
+    });
+    html += `</div>`;
+  }
+
+  container.innerHTML = html;
+})();
+
+})();
+</script>
+</body>
+</html>
