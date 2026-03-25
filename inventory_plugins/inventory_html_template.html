@@ -124,6 +124,15 @@ code{font-family:'SF Mono',ui-monospace,monospace;font-size:.82em;background:#ee
 .guest-chip{padding:3px 10px;border-radius:10px;font-size:.76rem;cursor:pointer;border:1px solid rgba(0,0,0,.08);transition:box-shadow .12s}
 .guest-chip:hover{box-shadow:0 1px 5px rgba(0,0,0,.18)}
 
+/* ---- switch panel view ---- */
+.sw-panel-wrap{padding:16px;display:flex;flex-direction:column;gap:28px}
+.sw-panel-title{font-size:.78rem;color:#888;margin-bottom:4px}
+.sw-host-link{cursor:pointer;transition:fill .1s}
+.sw-host-link:hover{fill:#0e8870!important}
+.sw-labels-hidden .sw-host-label{display:none}
+.sw-labels-hidden .sw-conn-line{display:none}
+#switch-diagram{overflow:auto}
+
 /* ---- workloads tab ---- */
 .wl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;align-items:start}
 .wl-card{background:#fff;border:1px solid #dde;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05)}
@@ -219,11 +228,8 @@ code{font-family:'SF Mono',ui-monospace,monospace;font-size:.82em;background:#ee
 
 <div id="tab-switch" class="tab-pane hidden">
   <div class="diagram-controls">
-    <button id="sw-btn-fit">Fit view</button>
-    <label><input type="checkbox" id="sw-cb-physics" checked> Physics</label>
-    <label><input type="checkbox" id="sw-cb-labels" checked> Labels</label>
+    <label><input type="checkbox" id="sw-cb-labels" checked> Host labels</label>
     <label><input type="checkbox" id="sw-cb-unconnected"> Show unconnected hosts</label>
-    <span style="font-size:12px;color:#888;margin-left:8px">Scroll to zoom · Drag to pan · Click node to highlight</span>
   </div>
   <div id="switch-diagram"></div>
 </div>
@@ -993,12 +999,8 @@ function initDiagram() {
 
 // ── Switch diagram ─────────────────────────────────────────────────────────────
 function initSwitchDiagram() {
-  const nodes = new vis.DataSet();
-  const edges = new vis.DataSet();
-
-  // Collect all switch names and host→switch connections
-  // Map: switchName → Set of { hostName, port, vlan }
-  const switchMap = {};
+  // ── Collect connections ────────────────────────────────────────────────────
+  const switchMap   = {};   // swName → [{host,hostData,port,vlan,iface}]
   const unconnected = [];
 
   hostList.forEach(([name, host]) => {
@@ -1014,112 +1016,144 @@ function initSwitchDiagram() {
     if (!hasSwitch) unconnected.push([name, host]);
   });
 
-  // Switch nodes — square, teal
-  Object.keys(switchMap).sort().forEach(sw => {
-    nodes.add({
-      id:    'sw:' + sw,
-      label: sw,
-      shape: 'box',
-      size:  20,
-      color: { background: '#1abc9c', border: '#0e8870',
-               highlight: { background: '#2ecc71', border: '#0e8870' } },
-      font:  { size: 13, color: '#fff', bold: true },
-      group: '__switch__',
-    });
-  });
+  const container  = document.getElementById('switch-diagram');
+  const switchNames = Object.keys(switchMap).sort();
 
-  // Host nodes and edges — one edge per unique (host, switch, port)
-  const edgeSeen = new Set();
-  Object.entries(switchMap).forEach(([sw, conns]) => {
-    conns.forEach(({ host, hostData, port, vlan, iface }) => {
-      const edgeKey = `${host}|${sw}|${port}`;
-      if (edgeSeen.has(edgeKey)) return;
-      edgeSeen.add(edgeKey);
+  if (!switchNames.length) {
+    container.innerHTML = '<p style="color:#888;padding:20px">No switch connections found in inventory.</p>';
+    return;
+  }
 
-      if (!nodes.get('host:' + host)) {
-        const bg = typeColor(hostData.type);
-        const ip = getPrimaryIP(hostData);
-        nodes.add({
-          id:    'host:' + host,
-          label: host,
-          title: `<b>${host}</b><br>Type: ${hostData.type||'?'}${ip?'<br>IP: '+ip:''}`,
-          shape: 'dot',
-          size:  10,
-          color: { background: bg, border: bg,
-                   highlight: { background: bg, border: '#fff' } },
-          font:  { size: 11, color: '#333' },
-          group: hostData.type || 'unknown',
-        });
-      }
+  // ── Layout constants ───────────────────────────────────────────────────────
+  const PORT_W      = 22;   // column width per port slot
+  const PORT_SZ     = 16;   // port square size
+  const PORT_GAP    = 3;    // gap between rows
+  const SW_PADX     = 14;   // horizontal padding inside switch body
+  const SW_PADY     = 6;    // vertical padding above/below port rows
+  const SW_HDR      = 22;   // header height for switch name
+  const SW_BODY_H   = SW_HDR + SW_PADY + PORT_SZ * 2 + PORT_GAP + SW_PADY;
+  const CONN_LINE_H = 50;   // vertical line from switch bottom to label start
+  const LABEL_AREA  = 120;  // height reserved for 45°-rotated host labels
 
-      const label = vlan ? `p${port}\n${vlan}` : `p${port}`;
-      edges.add({
-        from:  'host:' + host,
-        to:    'sw:'   + sw,
-        label,
-        font:  { size: 10, color: '#555', align: 'middle' },
-        color: { color: '#aaa', highlight: '#1abc9c', opacity: 0.8 },
-        width: 1.5,
+  function canonicalPorts(maxP) {
+    for (const n of [8, 12, 16, 24, 28, 48, 52, 56, 96, 128]) {
+      if (maxP <= n) return n;
+    }
+    return maxP + 4;
+  }
+
+  // Use explicit switch_ports from host vars if the switch is an inventory host,
+  // otherwise round max connected port up to a standard switch size.
+  function getSwitchPorts(swName) {
+    const swHost = hosts[swName];
+    if (swHost && swHost.switch_ports) return +swHost.switch_ports;
+    const maxP = (switchMap[swName] || []).reduce((m, c) => Math.max(m, c.port), 0);
+    return canonicalPorts(maxP);
+  }
+
+  // Centre (cx, cy) of port p (1-based) inside the SVG.
+  // ≤12 ports: single row.  >12 ports: 2 rows, alternating (col=floor((p-1)/2), row=(p-1)%2).
+  function portCentre(p, numPorts) {
+    const twoRows = numPorts > 12;
+    const col = twoRows ? Math.floor((p - 1) / 2) : (p - 1);
+    const row = twoRows ? (p - 1) % 2 : 0;
+    const cx  = SW_PADX + col * PORT_W + PORT_W / 2;
+    const cy  = SW_HDR + SW_PADY + row * (PORT_SZ + PORT_GAP) + PORT_SZ / 2;
+    return { cx, cy };
+  }
+
+  // ── Build SVG per switch ───────────────────────────────────────────────────
+  let outer = '<div class="sw-panel-wrap">';
+
+  switchNames.forEach(swName => {
+    const numPorts  = getSwitchPorts(swName);
+    const numCols   = numPorts > 12 ? Math.ceil(numPorts / 2) : numPorts;
+    const svgW      = SW_PADX * 2 + numCols * PORT_W;
+    const svgH      = SW_BODY_H + CONN_LINE_H + LABEL_AREA;
+    const conns     = switchMap[swName];
+    const portConns = {};   // port → [{host,hostData,vlan,iface}]
+    conns.forEach(c => { (portConns[c.port] = portConns[c.port] || []).push(c); });
+
+    let svg = `<svg width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}" style="display:block;overflow:visible">`;
+
+    // Switch body
+    svg += `<rect x="0" y="0" width="${svgW}" height="${SW_BODY_H}" rx="4"
+              fill="#2c3e50" stroke="#1abc9c" stroke-width="1.5"/>`;
+    svg += `<text x="${svgW / 2}" y="${SW_HDR - 6}" text-anchor="middle"
+              fill="#1abc9c" font-size="11" font-weight="bold" font-family="system-ui,sans-serif">${swName}</text>`;
+
+    // Port squares
+    for (let p = 1; p <= numPorts; p++) {
+      const { cx, cy } = portCentre(p, numPorts);
+      const used   = portConns[p] !== undefined;
+      const fill   = used ? '#1abc9c' : '#3d566e';
+      const stroke = used ? '#0e8870' : '#556677';
+      svg += `<rect x="${cx - PORT_SZ / 2}" y="${cy - PORT_SZ / 2}"
+                width="${PORT_SZ}" height="${PORT_SZ}" rx="2"
+                fill="${fill}" stroke="${stroke}" stroke-width="0.5"/>`;
+      svg += `<text x="${cx}" y="${cy + 3}" text-anchor="middle"
+                fill="${used ? '#fff' : '#7f8c8d'}" font-size="7" font-family="system-ui,sans-serif">${p}</text>`;
+    }
+
+    // Connection lines and rotated host labels for used ports
+    Object.entries(portConns).forEach(([portStr, hostConns]) => {
+      const p        = +portStr;
+      const { cx }   = portCentre(p, numPorts);
+      const lineTopY = SW_BODY_H;
+      const lineEndY = SW_BODY_H + CONN_LINE_H;
+
+      svg += `<line x1="${cx}" y1="${lineTopY}" x2="${cx}" y2="${lineEndY}"
+                class="sw-conn-line" stroke="#1abc9c" stroke-width="1.5" stroke-dasharray="4,2"/>`;
+
+      hostConns.forEach((c, idx) => {
+        const labelY = lineEndY + idx * 16;
+        const label  = c.vlan ? `${c.host} [${c.vlan}]` : c.host;
+        svg += `<g class="sw-host-label" transform="translate(${cx},${labelY}) rotate(-45)">` +
+               `<text x="4" y="0" dominant-baseline="auto" text-anchor="start"` +
+               ` fill="#2c3e50" font-size="11" font-family="system-ui,sans-serif"` +
+               ` class="sw-host-link" data-host="${c.host}">${label}</text>` +
+               `</g>`;
       });
     });
+
+    svg += '</svg>';
+
+    outer += `<div class="sw-panel">` +
+             `<div class="sw-panel-title">${swName} &mdash; ${numPorts} ports, ${conns.length} connection${conns.length !== 1 ? 's' : ''}</div>` +
+             svg +
+             `</div>`;
   });
 
-  // Unconnected hosts (hidden by default)
-  unconnected.forEach(([name, host]) => {
-    if (nodes.get('host:' + name)) return;
-    const bg = typeColor(host.type);
-    const ip = getPrimaryIP(host);
-    nodes.add({
-      id:     'host:' + name,
-      label:  name,
-      title:  `<b>${name}</b><br>Type: ${host.type||'?'}${ip?'<br>IP: '+ip:''}`,
-      shape:  'dot',
-      size:   8,
-      color:  { background: bg, border: bg,
-                highlight: { background: bg, border: '#fff' } },
-      font:   { size: 11, color: '#333' },
-      group:  host.type || 'unknown',
-      hidden: true,
-    });
+  // Unconnected hosts section (toggled by checkbox)
+  if (unconnected.length) {
+    outer += `<div id="sw-unconnected-section" style="display:none">` +
+             `<div style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-bottom:8px">Unconnected hosts</div>` +
+             `<div style="display:flex;flex-wrap:wrap;gap:6px">` +
+             unconnected.map(([name, h]) => {
+               const bg = typeColor(h.type);
+               const fg = contrastFg(bg);
+               return `<span class="sw-host-link badge" data-host="${name}" style="background:${bg};color:${fg}">${name}</span>`;
+             }).join('') +
+             `</div></div>`;
+  }
+
+  outer += '</div>';
+  container.innerHTML = outer;
+
+  // Click handlers for host labels and unconnected badges
+  container.querySelectorAll('.sw-host-link').forEach(el => {
+    el.addEventListener('click', () => showHostDetail(el.dataset.host));
   });
 
-  const container = document.getElementById('switch-diagram');
-  const visNet = new vis.Network(container, { nodes, edges }, {
-    physics: {
-      enabled: true,
-      barnesHut: { gravitationalConstant: -8000, centralGravity: 0.3,
-                   springLength: 140, springConstant: 0.05, damping: 0.25 },
-      stabilization: { iterations: 200 },
-    },
-    interaction: { hover: true, tooltipDelay: 80 },
-    nodes: { borderWidth: 1 },
-    edges: {
-      smooth: { type: 'continuous', roundness: 0.2 },
-      font: { strokeWidth: 2, strokeColor: '#fff' },
-    },
-  });
-
-  // Click: highlight neighbours; click host node to also open detail panel
-  visNet.on('click', params => {
-    if (!params.nodes.length) { visNet.unselectAll(); nodes.update(nodes.get().map(n => ({ id: n.id, opacity: 1 }))); return; }
-    const selected = params.nodes[0];
-    if (selected.startsWith('host:')) showHostDetail(selected.slice(5));
-    const connected = new Set(visNet.getConnectedNodes(selected));
-    connected.add(selected);
-    nodes.update(nodes.get().map(n => ({ id: n.id, opacity: connected.has(n.id) ? 1 : 0.15 })));
-  });
-
-  document.getElementById('sw-btn-fit').addEventListener('click', () => visNet.fit({ animation: true }));
-  document.getElementById('sw-cb-physics').addEventListener('change', e =>
-    visNet.setOptions({ physics: { enabled: e.target.checked } }));
+  // Labels toggle: hide/show the connector lines and rotated labels
   document.getElementById('sw-cb-labels').addEventListener('change', e => {
-    const sz = e.target.checked ? 11 : 0;
-    nodes.update(nodes.get().map(n => ({ id: n.id, font: { ...n.font, size: sz } })));
+    container.classList.toggle('sw-labels-hidden', !e.target.checked);
   });
+
+  // Unconnected hosts toggle
   document.getElementById('sw-cb-unconnected').addEventListener('change', e => {
-    const show = e.target.checked;
-    const ids = unconnected.map(([name]) => 'host:' + name).filter(id => nodes.get(id));
-    nodes.update(ids.map(id => ({ id, hidden: !show })));
+    const sec = document.getElementById('sw-unconnected-section');
+    if (sec) sec.style.display = e.target.checked ? '' : 'none';
   });
 }
 
