@@ -94,3 +94,17 @@
   tags:
     - base_config
     - access_setup
+
+- name: set ansible_run_id
+  set_fact:
+    ansible_run_id: >-
+      {{ (
+        ansible_date_time.epoch + ':' +
+        (lookup('env', 'USER') | default('unknown')) + '@' +
+        (lookup('pipe', 'hostname -s', errors='ignore') | default('unknown')) + ':' +
+        ansible_version.full
+      ) | b64encode }}
+  when: ansible_run_id is undefined
+  tags:
+    - base_config
+    - access_setup
