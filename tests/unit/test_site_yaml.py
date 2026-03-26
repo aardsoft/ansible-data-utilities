@@ -44,7 +44,7 @@ class TestSubnetReverseZone:
         assert plugin._subnet_reverse_zone('192.168.1.0/24') == '1.168.192.in-addr.arpa'
 
     def test_ipv4_slash24_hostbits(self, plugin):
-        # strict=False: host bits are cleared, so 192.168.1.5/24 → 192.168.1.0/24
+        # strict=False: host bits are cleared, so 192.168.1.5/24 -> 192.168.1.0/24
         assert plugin._subnet_reverse_zone('192.168.1.5/24') == '1.168.192.in-addr.arpa'
 
     def test_ipv4_slash16(self, plugin):
@@ -440,7 +440,7 @@ class TestSynthesizeHostNetworkMetadata:
         assert result['hosts']['h']['networks']['if1']['dns_name'] == 'h.second.example.com'
 
     def test_dns_name_vlan_default_not_prefixed(self):
-        # vlan=='default' → _resolve_iface_vlan returns None → no vlan label
+        # vlan=='default' -> _resolve_iface_vlan returns None -> no vlan label
         result = self._run(
             networks={},
             hosts={'h': {'type': 'server',
@@ -461,7 +461,7 @@ class TestSynthesizeHostNetworkMetadata:
         assert result['hosts']['h']['networks']['if0']['dns_name'] == 'gateway.example.com'
 
     def test_dns_name_explicit_fqdn_dns_key(self):
-        # Trailing dot → used verbatim (dot stripped from result)
+        # Trailing dot -> used verbatim (dot stripped from result)
         result = self._run(
             networks={},
             hosts={'h': {'type': 'server',

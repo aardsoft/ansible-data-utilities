@@ -1194,7 +1194,7 @@ structures provided by this. '''
         '''
         hosts = data.get(valid_keys['hosts'], {})
 
-        # Step 1: build machine → guests index
+        # Step 1: build machine -> guests index
         machine_guests = {}
         for host_name, host_def in hosts.items():
             if not isinstance(host_def, dict):

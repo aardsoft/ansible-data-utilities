@@ -10,6 +10,7 @@ from unittest.mock import MagicMock
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.join(REPO_ROOT, 'inventory_plugins'))
 sys.path.insert(0, os.path.join(REPO_ROOT, 'filter_plugins'))
+sys.path.insert(0, REPO_ROOT)  # for switch_utils and other top-level packages
 
 # Default option values matching the plugin's DOCUMENTATION defaults
 DEFAULT_OPTIONS = {
