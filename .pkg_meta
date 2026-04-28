@@ -1,2 +1,3 @@
 name=data-utilities
 public_release=1
+pkg_description="Inventory plugin and reusable core modules for data manipulation"
