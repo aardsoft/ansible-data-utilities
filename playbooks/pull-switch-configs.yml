@@ -21,6 +21,10 @@
 #   switch_config_format  filename as printf format, %s = inventory_hostname
 #                         (default: config.%s, matches legacy script naming)
 #
+# Stack deduplication: switches with switch_stack set share a config file name.
+# The playbook pulls from the first reachable stack member and skips the rest.
+# If a member is unreachable the next member in play order takes over.
+#
 # Usage:
 #   ansible-playbook playbooks/pull-switch-configs.yml
 #   ansible-playbook playbooks/pull-switch-configs.yml -l sw-core
@@ -28,13 +32,21 @@
 - hosts: switches
   gather_facts: false
   connection: switch_ssh
+  serial: 1
 
   pre_tasks:
-    - name: Read switch password from passdb
+    - name: Fetch switch password from passdb
       set_fact:
-        ansible_password: "{{ lookup('community.general.passwordstore', switch_passdb_entry) }}"
+        _switch_password: "{{ lookup('community.general.passwordstore', switch_passdb_entry) }}"
       delegate_to: localhost
+      delegate_facts: true
       connection: local
+      run_once: true
+      no_log: true
+
+    - name: Set connection password
+      set_fact:
+        ansible_password: "{{ hostvars['localhost']['_switch_password'] }}"
       no_log: true
 
   tasks:
@@ -62,10 +74,28 @@
     - name: Fetch saved configuration
       raw: "__fetch_saved_config__"
       register: _switch_config
+      when: (switch_stack | default(inventory_hostname)) not in (hostvars['localhost']['_pulled_stacks'] | default([]))
+      ignore_errors: true
+      ignore_unreachable: true
 
     - name: Save configuration locally
       copy:
-        content: "{{ _switch_config.stdout }}"
-        dest: "{{ switch_config_dir | default('switch-configs') }}/{{ (switch_config_format | default('config.%s')) | format(inventory_hostname) }}"
+        content: "{{ _switch_config.stdout | regex_replace('[ \t]+$', '', multiline=True) }}"
+        dest: >-
+          {{ switch_config_dir | default('switch-configs') }}/{{
+          (switch_config_format | default('config.%s')) |
+          format(switch_stack | default(inventory_hostname))
+          }}
       delegate_to: localhost
       connection: local
+      when:
+        - _switch_config is succeeded
+        - _switch_config.stdout is defined
+
+    - name: Mark stack as pulled
+      set_fact:
+        _pulled_stacks: "{{ hostvars['localhost']['_pulled_stacks'] | default([]) + [switch_stack | default(inventory_hostname)] }}"
+      delegate_to: localhost
+      delegate_facts: true
+      when:
+        - _switch_config is succeeded

@@ -1352,6 +1352,14 @@ structures provided by this. '''
                         for var in host_vars:
                             self.inventory.set_variable(host, var, host_vars[var])
 
+                    # add switch specific data to host vars. For now
+                    # this is only the stack.
+                    if host_type == 'switch':
+                        switch_vars = hosts[host].get('switch')
+                        if isinstance(switch_vars, dict):
+                            for var, value in switch_vars.items():
+                                self.inventory.set_variable(host, "switch_%s" % var, value)
+
                     # type-specific host setup via registered extension
                     if host_type in self._extension_registry:
                         contributions = self._extension_registry[host_type].setup_host(
