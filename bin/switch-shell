@@ -1,0 +1,920 @@
+#!/usr/bin/env python3
+"""Interactive shell for network switches.
+
+Connects via switch_utils.session.SwitchSession (paramiko invoke_shell),
+fetches the running config on startup for state-aware validation, then
+presents a readline REPL.
+
+Features:
+  - Automatic dialect-specific unlock (HPE: _cmdline-mode on + password)
+  - Paging disabled automatically after login
+  - Context tracking: knows which interface block you're editing
+  - Pre-send validation with suggestions (e.g. HPE LAG VLAN consistency)
+  - Meta-commands prefixed with ':' for state inspection
+  - Tab completion of interface names and VLAN IDs
+  - Persistent readline history in ~/.switch_shell_history
+"""
+
+import os
+import sys
+
+# Paramiko is required. If it's not importable with the current Python, try to
+# re-exec using the ansible venv Python (found via VIRTUAL_ENV or ansible in PATH).
+# This means the script works whether or not the ansible venv is activated,
+# as long as paramiko is installed in that venv.
+def _reexec_with_ansible_python():
+    import shutil
+    candidates = []
+    venv = os.environ.get('VIRTUAL_ENV')
+    if venv:
+        candidates.append(os.path.join(venv, 'bin', 'python'))
+    ansible_bin = shutil.which('ansible')
+    if ansible_bin:
+        candidates.append(os.path.join(os.path.dirname(ansible_bin), 'python'))
+    for py in candidates:
+        if os.path.isfile(py) and py != sys.executable:
+            os.execv(py, [py] + sys.argv)
+
+try:
+    import paramiko as _paramiko_check  # noqa: F401
+    del _paramiko_check
+except ImportError:
+    _reexec_with_ansible_python()
+    print(
+        'ERROR: paramiko is not available.\n'
+        'Install it into the ansible venv:\n'
+        '  pip install paramiko\n'
+        'Or activate the venv before running this script:\n'
+        '  source <venv>/bin/activate',
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+import argparse
+import getpass
+import re
+import subprocess
+
+_repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _repo_root not in sys.path:
+    sys.path.insert(0, _repo_root)
+
+from switch_utils.session import SwitchSession, SwitchSessionError, DIALECT_PROFILES
+from switch_utils.parsers import parse
+from switch_utils.utils import expand_hpe_range, compress_list
+
+try:
+    import readline
+    _HAVE_READLINE = True
+except ImportError:
+    _HAVE_READLINE = False
+
+# ---------------------------------------------------------------------------
+# Config file
+# ---------------------------------------------------------------------------
+
+try:
+    import yaml as _yaml
+    _HAVE_YAML = True
+except ImportError:
+    _HAVE_YAML = False
+
+_CONFIG_PATHS = [
+    os.path.expanduser('~/.config/switch-shell.yaml'),
+    os.path.expanduser('~/.switch-shell.yaml'),
+]
+
+# Keys and their built-in defaults (all overridable in config)
+_CONFIG_DEFAULTS = {
+    'user': 'admin',
+    'domain': '',
+    'passdb_entry': '',
+    'auth': 'password',   # 'password' | 'key'
+}
+
+
+def load_config(path=None):
+    """Load config file. Returns dict with 'defaults' and 'switches' keys."""
+    if not _HAVE_YAML:
+        return {'defaults': dict(_CONFIG_DEFAULTS), 'switches': {}}
+    paths = [path] if path else _CONFIG_PATHS
+    for p in paths:
+        if p and os.path.isfile(p):
+            try:
+                with open(p, encoding='utf-8') as fh:
+                    data = _yaml.safe_load(fh) or {}
+                cfg = {'defaults': dict(_CONFIG_DEFAULTS), 'switches': {}}
+                cfg['defaults'].update(data.get('defaults', {}))
+                cfg['switches'] = data.get('switches', {})
+                return cfg
+            except Exception as exc:
+                print('[warn] config %s: %s' % (p, exc), file=sys.stderr)
+    return {'defaults': dict(_CONFIG_DEFAULTS), 'switches': {}}
+
+
+def _resolve_switch_config(cfg, host_key):
+    """Merge per-switch overrides onto global defaults for the given host key."""
+    result = dict(cfg['defaults'])
+    result.update(cfg.get('switches', {}).get(host_key, {}))
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Password lookup
+# ---------------------------------------------------------------------------
+
+
+def _lookup_pass(entry, host='', fqdn='', user=''):
+    """Return first line from pass(1) store entry, or None on any failure."""
+    entry = entry.format(host=host, fqdn=fqdn, user=user)
+    try:
+        result = subprocess.run(
+            ['pass', 'show', entry],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode == 0:
+            lines = result.stdout.splitlines()
+            if lines:
+                return lines[0].strip()
+            print('[warn] pass: empty output for %r' % entry, file=sys.stderr)
+        else:
+            print('[warn] pass: %s' % result.stderr.strip(), file=sys.stderr)
+    except FileNotFoundError:
+        print('[warn] pass(1) not found in PATH', file=sys.stderr)
+    except subprocess.TimeoutExpired:
+        print('[warn] pass: timed out for %r' % entry, file=sys.stderr)
+    except Exception as exc:
+        print('[warn] pass: %s' % exc, file=sys.stderr)
+    return None
+
+
+def _resolve_password(sw_cfg, host, fqdn, user, no_password, passdb_entry=None):
+    """Return SSH password string, or None for key-only auth.
+
+    Priority: --no-password / auth=key > SWITCH_PASSWORD env > pass lookup > prompt.
+    """
+    if no_password or sw_cfg.get('auth') == 'key':
+        return None
+    env_pw = os.environ.get('SWITCH_PASSWORD')
+    if env_pw:
+        return env_pw
+    entry = passdb_entry or sw_cfg.get('passdb_entry', '')
+    if entry:
+        pw = _lookup_pass(entry, host=host, fqdn=fqdn, user=user)
+        if pw is not None:
+            return pw
+    return getpass.getpass('Password for %s@%s: ' % (user, fqdn))
+
+
+# ---------------------------------------------------------------------------
+# State fetch
+# ---------------------------------------------------------------------------
+
+# Command to retrieve the full running config per dialect
+_FETCH_CMD = {
+    'hpe_procurve': 'display current-configuration',
+    'cisco_ios':    'show running-config',
+    'fs_generic':   'show running-config',
+    'fs_s3400':     'show running-config',
+    'fs_gigaeth':   'show running-config',
+    'fs_vrp':       'display current-configuration',
+    'fs_eth0':      'show running-config',
+    'dell_os9':     'show running-config',
+    'routeros':     '/export compact',
+    'zyxel_xgs':    'show running-config',
+}
+
+# Command to retrieve the saved (startup) config per dialect.
+# RouterOS has no separate saved config; /export compact reflects current state.
+# zyxel_xgs: show startup-config is unverified — may need adjustment.
+_SAVED_CONFIG_CMD = {
+    'hpe_procurve': 'display saved-configuration',
+    'cisco_ios':    'show startup-config',
+    'fs_generic':   'show startup-config',
+    'fs_s3400':     'show configuration',
+    'fs_gigaeth':   'show startup-config',
+    'fs_vrp':       'display saved-configuration',
+    'fs_eth0':      'show startup-config',
+    'dell_os9':     'show startup-config',
+    'routeros':     '/export compact',
+    'zyxel_xgs':    'show startup-config',
+}
+
+
+_SAVED_CONFIG_PREAMBLE_RE = re.compile(
+    r'^\s*Using \d+ out of \d+ bytes[^\n]*\n',
+    re.MULTILINE,
+)
+
+
+def fetch_saved_config(session, dialect, debug=False):
+    """Pull saved (startup) config text from switch. Returns raw string or None on failure."""
+    cmd = _SAVED_CONFIG_CMD.get(dialect)
+    if not cmd:
+        print('  [warn] no saved-config command defined for dialect %s' % dialect)
+        return None
+    try:
+        output = session.send_command(cmd, in_config_mode=False)
+        if debug:
+            print('  [debug] saved config raw output (%d chars)' % len(output))
+            print('  [debug] first 200 chars: %r' % output[:200])
+        return _SAVED_CONFIG_PREAMBLE_RE.sub('', output)
+    except Exception as exc:
+        print('  [warn] could not fetch saved config: %s' % exc)
+        return None
+
+
+def fetch_state(session, dialect, debug=False):
+    """Pull running config from switch, parse into SwitchConfig. Returns None on failure."""
+    cmd = _FETCH_CMD.get(dialect)
+    if not cmd:
+        return None
+    try:
+        output = session.send_command(cmd, in_config_mode=False)
+        if debug:
+            print('  [debug] raw output (%d chars):' % len(output))
+            print('  [debug] first 500 chars: %r' % output[:500])
+            print('  [debug] last 200 chars:  %r' % output[-200:])
+
+        # Let content-level detection run first; it may be more accurate than the
+        # banner-based session dialect (e.g. bare 'hostname#' can be Dell or FS).
+        result = parse(output, dialect=None)
+        if result.dialect == 'unknown':
+            # Content detection failed (no recognisable header); fall back to
+            # the session dialect so we at least try the right parser.
+            result = parse(output, dialect=dialect)
+        elif result.dialect != dialect:
+            # Content says something different from the session dialect.
+            # Trust the content — update the session so future commands and
+            # fetch_saved_config() use the correct dialect.
+            session.dialect = result.dialect
+            session.profile = DIALECT_PROFILES.get(result.dialect, session.profile)
+
+        if debug:
+            print('  [debug] parsed dialect: %s, ports: %d, vlans: %d, lags: %d'
+                  % (result.dialect, len(result.ports), len(result.vlans),
+                     len(result.lacp_groups)))
+            if result.errors:
+                print('  [debug] errors: %s' % result.errors)
+            if result.warnings:
+                print('  [debug] warnings: %s' % result.warnings)
+        return result
+    except Exception as exc:
+        print('  [warn] could not fetch state: %s' % exc)
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Context tracking
+# ---------------------------------------------------------------------------
+
+# HPE ProCurve interface name patterns
+_HPE_IFACE_RE = re.compile(
+    r'^interface\s+(Bridge-Aggregation\d+|GigabitEthernet\S+|Ten-GigabitEthernet\S+|NULL\d+|Vlan-interface\d+)',
+    re.IGNORECASE,
+)
+# Generic interface entry for other dialects
+_GENERIC_IFACE_RE = re.compile(r'^interface\s+(\S+)', re.IGNORECASE)
+# VLAN block entry
+_VLAN_BLOCK_RE = re.compile(r'^vlan\s+(\d+)\s*$')
+# Exit commands
+_EXIT_RE = re.compile(r'^(quit|exit|end)\s*$', re.IGNORECASE)
+# System-view / configure (enter config mode, stay at top level within it)
+_CFG_ENTER_RE = re.compile(r'^(system-view|configure(\s+terminal)?)\s*$', re.IGNORECASE)
+
+
+def update_context(line, context, dialect):
+    """Return updated (context_type, context_name) tuple given a typed line."""
+    stripped = line.strip()
+
+    if _EXIT_RE.match(stripped):
+        # If in interface/vlan block, exit to top; if at top, exit config mode
+        if context[0] in ('interface', 'vlan'):
+            return ('top', None)
+        return ('top', None)
+
+    if _CFG_ENTER_RE.match(stripped):
+        return ('top', None)
+
+    m = _HPE_IFACE_RE.match(stripped) if dialect == 'hpe_procurve' else _GENERIC_IFACE_RE.match(stripped)
+    if m:
+        return ('interface', m.group(1))
+
+    m = _VLAN_BLOCK_RE.match(stripped)
+    if m:
+        return ('vlan', m.group(1))
+
+    return context
+
+
+# ---------------------------------------------------------------------------
+# Validation
+# ---------------------------------------------------------------------------
+
+class Warning:
+    def __init__(self, level, message, suggestions=None):
+        self.level = level          # 'error' | 'warning' | 'info'
+        self.message = message
+        self.suggestions = suggestions or []
+
+    def __repr__(self):
+        return 'Warning(%s, %r)' % (self.level, self.message)
+
+
+def _parse_hpe_vlan_cmd(line):
+    """Parse 'port trunk permit vlan LIST' or 'undo port trunk permit vlan LIST'.
+    Returns (action, vlan_ids) where action is 'permit' or 'undo'.
+    """
+    m = re.match(r'^(undo\s+)?port\s+trunk\s+permit\s+vlan\s+(.+)', line.strip(), re.IGNORECASE)
+    if not m:
+        return None, []
+    action = 'undo' if m.group(1) else 'permit'
+    vlans = expand_hpe_range(m.group(2).strip())
+    return action, vlans
+
+
+def _hpe_lag_consistency_check(line, context, state):
+    """Check HPE LAG VLAN consistency.
+
+    When adding/removing VLANs on a Bridge-Aggregation interface, warn if
+    the same change isn't reflected on member ports (and vice-versa).
+    """
+    warnings = []
+    if state is None:
+        return warnings
+
+    ctx_type, ctx_name = context
+    if ctx_type != 'interface':
+        return warnings
+
+    action, vlans = _parse_hpe_vlan_cmd(line)
+    if not vlans:
+        return warnings
+
+    # Build lookup tables from state
+    # port_to_group: port_name -> group_id
+    # group_to_members: group_id -> [port_name, ...]
+    port_to_group = {}
+    group_to_members = {}
+    for lag in state.lacp_groups:
+        group_to_members[lag.group_id] = list(lag.members)
+        for m in lag.members:
+            port_to_group[m] = lag.group_id
+
+    bagg_re = re.compile(r'^Bridge-Aggregation(\d+)$', re.IGNORECASE)
+    m_bagg = bagg_re.match(ctx_name)
+
+    if m_bagg:
+        # Acting on the LAG interface — check members
+        group_id = int(m_bagg.group(1))
+        members = group_to_members.get(group_id, [])
+        if not members:
+            return warnings
+
+        for member in members:
+            port = state.ports.get(member)
+            if port is None:
+                continue
+            member_vlans = set(port.tagged_vlans or []) | set(port.untagged_vlans or [])
+            if action == 'permit':
+                missing = [v for v in vlans if v not in member_vlans]
+                if missing:
+                    suggestions = [
+                        'interface %s' % member,
+                        'port trunk permit vlan %s' % compress_list(missing),
+                    ]
+                    warnings.append(Warning(
+                        'warning',
+                        'VLAN(s) %s not permitted on LAG member %s' % (
+                            compress_list(missing), member),
+                        suggestions,
+                    ))
+            else:  # undo
+                present = [v for v in vlans if v in member_vlans]
+                if present:
+                    suggestions = [
+                        'interface %s' % member,
+                        'undo port trunk permit vlan %s' % compress_list(present),
+                    ]
+                    warnings.append(Warning(
+                        'warning',
+                        'VLAN(s) %s still permitted on LAG member %s — remove too?' % (
+                            compress_list(present), member),
+                        suggestions,
+                    ))
+
+    else:
+        # Acting on a physical port — check if it's a LAG member
+        group_id = port_to_group.get(ctx_name)
+        if group_id is None:
+            return warnings
+
+        bagg_name = 'Bridge-Aggregation%s' % group_id
+        bagg_port = state.ports.get(bagg_name)
+        if bagg_port is None:
+            return warnings
+
+        bagg_vlans = set(bagg_port.tagged_vlans or []) | set(bagg_port.untagged_vlans or [])
+        if action == 'permit':
+            missing = [v for v in vlans if v not in bagg_vlans]
+            if missing:
+                suggestions = [
+                    'interface %s' % bagg_name,
+                    'port trunk permit vlan %s' % compress_list(missing),
+                ]
+                warnings.append(Warning(
+                    'warning',
+                    'VLAN(s) %s not permitted on LAG interface %s' % (
+                        compress_list(missing), bagg_name),
+                    suggestions,
+                ))
+        else:
+            present = [v for v in vlans if v in bagg_vlans]
+            if present:
+                suggestions = [
+                    'interface %s' % bagg_name,
+                    'undo port trunk permit vlan %s' % compress_list(present),
+                ]
+                warnings.append(Warning(
+                    'warning',
+                    'VLAN(s) %s still permitted on LAG interface %s — remove too?' % (
+                        compress_list(present), bagg_name),
+                    suggestions,
+                ))
+
+    return warnings
+
+
+def validate_command(line, context, state, dialect):
+    """Run all applicable validators. Returns list of Warning objects."""
+    warnings = []
+    if dialect == 'hpe_procurve':
+        warnings.extend(_hpe_lag_consistency_check(line, context, state))
+    return warnings
+
+
+# ---------------------------------------------------------------------------
+# Meta-commands
+# ---------------------------------------------------------------------------
+
+def _print_state(state):
+    if state is None:
+        print('  [no state loaded — run :refresh]')
+        return
+    print('  Hostname : %s' % (state.hostname or '(unknown)'))
+    print('  Dialect  : %s' % state.dialect)
+    print('  VLANs    : %d defined' % len(state.vlans))
+    print('  Ports    : %d' % len(state.ports))
+    print('  LAG grps : %d' % len(state.lacp_groups))
+    if state.errors:
+        print('  Errors   : %s' % ', '.join(state.errors))
+
+
+def _print_vlans(state):
+    if state is None:
+        print('  [no state]')
+        return
+    if not state.vlans:
+        print('  (no VLANs)')
+        return
+    for vid in sorted(state.vlans):
+        v = state.vlans[vid]
+        print('  VLAN %4d  %s' % (vid, v.name or ''))
+
+
+def _print_lags(state):
+    if state is None:
+        print('  [no state]')
+        return
+    if not state.lacp_groups:
+        print('  (no LAG groups)')
+        return
+    for lag in sorted(state.lacp_groups, key=lambda g: g.group_id):
+        print('  LAG %-3s  mode=%-10s  members: %s' % (
+            lag.group_id, lag.mode or '?', ', '.join(lag.members)))
+
+
+def _print_port(state, name):
+    if state is None:
+        print('  [no state]')
+        return
+    # Case-insensitive search
+    matches = [p for p in state.ports if p.lower() == name.lower()]
+    if not matches:
+        # Partial match
+        matches = [p for p in state.ports if name.lower() in p.lower()]
+    if not matches:
+        print('  Port not found: %s' % name)
+        return
+    for pname in matches:
+        p = state.ports[pname]
+        print('  %s' % pname)
+        if p.description:
+            print('    description : %s' % p.description)
+        print('    mode        : %s' % (p.mode or '?'))
+        if p.access_vlan:
+            print('    access vlan : %s' % p.access_vlan)
+        if p.native_vlan:
+            print('    native vlan : %s' % p.native_vlan)
+        if p.tagged_vlans:
+            print('    tagged      : %s' % compress_list(p.tagged_vlans))
+        if p.untagged_vlans:
+            print('    untagged    : %s' % compress_list(p.untagged_vlans))
+        if p.lacp_group is not None:
+            print('    LAG group   : %s' % p.lacp_group)
+        if p.shutdown:
+            print('    shutdown    : yes')
+
+
+_META_HELP = """
+Meta-commands (not sent to switch):
+  :refresh          Re-fetch running config and rebuild state
+  :save [file]      Fetch saved (startup) config and write to file
+                    Default filename: <hostname>_saved.cfg
+  :state            Show summary of fetched state
+  :vlans            List VLANs from fetched state
+  :lags             List LAG groups and members
+  :port <name>      Show fetched config for a port (partial match ok)
+  :dialect          Show current dialect
+  :context          Show current interface context
+  :help             This help text
+  :quit  or Ctrl-D  Disconnect and exit
+"""
+
+
+def handle_meta(line, session, state, dialect, context, debug=False, hostname=None):
+    """Handle a ':command' meta-command. Returns possibly-updated state."""
+    parts = line[1:].split(None, 1)
+    cmd = parts[0].lower() if parts else ''
+    arg = parts[1].strip() if len(parts) > 1 else ''
+
+    if cmd in ('quit', 'exit', 'q'):
+        raise SystemExit(0)
+    elif cmd == 'refresh':
+        print('  Fetching running config...')
+        state = fetch_state(session, dialect, debug=debug)
+        if state:
+            print('  State refreshed: %d ports, %d VLANs, %d LAG groups' % (
+                len(state.ports), len(state.vlans), len(state.lacp_groups)))
+        return state
+    elif cmd == 'save':
+        if arg:
+            dest = arg
+        else:
+            safe_host = re.sub(r'[^\w.\-]', '_', hostname or 'switch')
+            dest = '%s_saved.cfg' % safe_host
+        print('  Fetching saved config...')
+        text = fetch_saved_config(session, dialect, debug=debug)
+        if text is None:
+            print('  Failed to fetch saved config.')
+            return state
+        try:
+            with open(dest, 'w', encoding='utf-8') as fh:
+                fh.write(text)
+            print('  Saved config written to %s (%d bytes)' % (dest, len(text)))
+        except OSError as exc:
+            print('  ERROR writing %s: %s' % (dest, exc))
+        return state
+    elif cmd == 'raw':
+        # Send a command and print the raw output without any parsing
+        if not arg:
+            print('  Usage: :raw <command>')
+            return state
+        try:
+            out = session.send_command(arg, in_config_mode=False)
+            print('  [raw output %d chars]' % len(out))
+            print(repr(out[:1000]))
+        except Exception as exc:
+            print('  ERROR: %s' % exc)
+        return state
+    elif cmd == 'state':
+        _print_state(state)
+    elif cmd == 'vlans':
+        _print_vlans(state)
+    elif cmd == 'lags':
+        _print_lags(state)
+    elif cmd == 'port':
+        if not arg:
+            print('  Usage: :port <interface-name>')
+        else:
+            _print_port(state, arg)
+    elif cmd == 'dialect':
+        print('  %s' % dialect)
+    elif cmd == 'context':
+        ctx_type, ctx_name = context[0], context[1]
+        if ctx_name:
+            print('  %s: %s' % (ctx_type, ctx_name))
+        else:
+            print('  %s' % ctx_type)
+    elif cmd == 'help':
+        print(_META_HELP)
+    else:
+        print('  Unknown meta-command :%s  (try :help)' % cmd)
+
+    return state
+
+
+# ---------------------------------------------------------------------------
+# Confirmation prompt
+# ---------------------------------------------------------------------------
+
+def confirm_warnings(warnings):
+    """Print warnings and ask user to confirm. Returns True if should proceed."""
+    if not warnings:
+        return True
+
+    for w in warnings:
+        marker = '  [!]' if w.level == 'error' else '  [?]'
+        print('%s %s' % (marker, w.message))
+        for s in w.suggestions:
+            print('      %s' % s)
+
+    errors = [w for w in warnings if w.level == 'error']
+    if errors:
+        try:
+            ans = input('  Send anyway? [y/N] ').strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            return False
+        return ans == 'y'
+    else:
+        try:
+            ans = input('  Send anyway? [Y/n] ').strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            return False
+        return ans != 'n'
+
+
+# ---------------------------------------------------------------------------
+# Commands that should trigger a state refresh after being sent
+# ---------------------------------------------------------------------------
+
+_REFRESH_TRIGGERS = re.compile(
+    r'port\s+link-aggregation\s+group|'
+    r'undo\s+port\s+link-aggregation|'
+    r'link-aggregation\s+mode|'
+    r'channel-group|'
+    r'vlan\s+\d',
+    re.IGNORECASE,
+)
+
+
+def should_refresh(line, context, dialect):
+    return bool(_REFRESH_TRIGGERS.search(line))
+
+
+# ---------------------------------------------------------------------------
+# Tab completion
+# ---------------------------------------------------------------------------
+
+class _Completer:
+    def __init__(self, state, dialect):
+        self._words = self._build_words(state, dialect)
+
+    def _build_words(self, state, dialect):
+        words = []
+        if state:
+            words += list(state.ports.keys())
+            words += ['vlan %d' % vid for vid in state.vlans]
+        if dialect == 'hpe_procurve':
+            words += [
+                'interface', 'port trunk permit vlan', 'undo port trunk permit vlan',
+                'port link-type trunk', 'port link-type access', 'port link-type hybrid',
+                'port trunk pvid vlan', 'port access vlan', 'system-view', 'quit',
+                'display current-configuration', 'display interface brief',
+                'display link-aggregation verbose',
+            ]
+        words += [':refresh', ':save', ':state', ':vlans', ':lags', ':port',
+                  ':dialect', ':context', ':help', ':quit']
+        return words
+
+    def complete(self, text, state):
+        matches = [w for w in self._words if w.lower().startswith(text.lower())]
+        try:
+            return matches[state]
+        except IndexError:
+            return None
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def make_prompt(hostname, dialect, context):
+    host = hostname or 'switch'
+    ctx_type, ctx_name = context
+    if ctx_type == 'interface' and ctx_name:
+        # Shorten long interface names: GigabitEthernet1/0/1 -> GE1/0/1
+        short = ctx_name
+        short = re.sub(r'(?i)GigabitEthernet', 'GE', short)
+        short = re.sub(r'(?i)Ten-GigabitEthernet', 'XGE', short)
+        short = re.sub(r'(?i)Bridge-Aggregation', 'BAgg', short)
+        return '%s(if-%s)> ' % (host, short)
+    elif ctx_type == 'vlan' and ctx_name:
+        return '%s(vlan-%s)> ' % (host, ctx_name)
+    elif ctx_type == 'top':
+        return '%s> ' % host
+    return '%s> ' % host
+
+
+def main():
+    ap = argparse.ArgumentParser(
+        description='Interactive shell for network switches.')
+    ap.add_argument('--host', required=True, help='Switch hostname or IP')
+    ap.add_argument('--config', metavar='FILE',
+                    help='Config file (default: ~/.config/switch-shell.yaml)')
+    ap.add_argument('--passdb-entry', metavar='ENTRY',
+                    help='Pass store entry for password lookup; supports {host}, {fqdn}, {user} '
+                         '(overrides config passdb_entry for this run)')
+    ap.add_argument('--dialect', default=os.environ.get('SWITCH_DIALECT'),
+                    help='Switch dialect (or set SWITCH_DIALECT env var). '
+                         'Omit to auto-detect from banner. '
+                         'One of: %s' % ', '.join(sorted(DIALECT_PROFILES)))
+    ap.add_argument('--user', default=None,
+                    help='SSH username (CLI > SWITCH_USER env > config > "admin")')
+    ap.add_argument('--port', type=int, default=22, help='SSH port (default: 22)')
+    ap.add_argument('--no-state', action='store_true',
+                    help='Skip initial state fetch (faster connect, no validation)')
+    ap.add_argument('--no-unlock', action='store_true',
+                    help='Skip dialect-specific unlock sequence (e.g. HPE _cmdline-mode on)')
+    ap.add_argument('--debug', action='store_true',
+                    help='Print raw command output, parse diagnostics, and session trace')
+    ap.add_argument('--no-password', action='store_true',
+                    help='Skip password auth; use SSH agent or key file instead')
+    ap.add_argument('--enable-password', metavar='PASSWORD',
+                    default=os.environ.get('SWITCH_ENABLE_PASSWORD'),
+                    help='Enable password for switches that start in user exec mode '
+                         '(default: same as login password; env: SWITCH_ENABLE_PASSWORD)')
+    save_grp = ap.add_mutually_exclusive_group()
+    save_grp.add_argument('--save-to', metavar='FILE',
+                          help='Non-interactive: fetch saved config and write to FILE, then exit')
+    save_grp.add_argument('--save-dir', metavar='DIR',
+                          help='Non-interactive: fetch saved config, write to DIR/<host>_saved.cfg, then exit')
+    args = ap.parse_args()
+
+    # Load config and resolve per-switch settings
+    cfg = load_config(args.config)
+    host_key = args.host
+    sw_cfg = _resolve_switch_config(cfg, host_key)
+
+    # Apply domain suffix when host has no dots (bare switch name)
+    fqdn = host_key
+    if '.' not in fqdn and sw_cfg.get('domain'):
+        fqdn = '%s.%s' % (fqdn, sw_cfg['domain'])
+        print('Resolving %s -> %s' % (host_key, fqdn))
+
+    # Username: CLI flag > SWITCH_USER env > config > built-in default
+    user = args.user or os.environ.get('SWITCH_USER') or sw_cfg['user']
+
+    password = _resolve_password(
+        sw_cfg, host=host_key, fqdn=fqdn, user=user,
+        no_password=args.no_password,
+        passdb_entry=args.passdb_entry,
+    )
+
+    # Readline setup
+    history_file = os.path.expanduser('~/.switch_shell_history')
+    if _HAVE_READLINE:
+        readline.set_history_length(500)
+        try:
+            readline.read_history_file(history_file)
+        except FileNotFoundError:
+            pass
+
+    dialect_label = args.dialect or 'auto-detect'
+    print('Connecting to %s (%s)...' % (fqdn, dialect_label))
+    session = SwitchSession(
+        hostname=fqdn,
+        username=user,
+        dialect=args.dialect,  # None triggers auto-detect in SwitchSession
+        password=password,
+        port=args.port,
+        no_unlock=args.no_unlock,
+        debug=args.debug,
+        enable_password=args.enable_password or None,
+    )
+    try:
+        session.connect()
+    except SwitchSessionError as exc:
+        print('ERROR: %s' % exc, file=sys.stderr)
+        sys.exit(1)
+
+    # After connect, dialect may have been auto-detected
+    args.dialect = session.dialect
+    print('Connected. Dialect: %s' % args.dialect)
+
+    # Non-interactive mode: fetch saved config and exit
+    if args.save_to or args.save_dir:
+        if args.save_to:
+            dest = args.save_to
+        else:
+            safe_host = re.sub(r'[^\w.\-]', '_', fqdn)
+            dest = os.path.join(args.save_dir, '%s_saved.cfg' % safe_host)
+        text = fetch_saved_config(session, args.dialect, debug=args.debug)
+        session.close()
+        if text is None:
+            print('ERROR: failed to fetch saved config', file=sys.stderr)
+            sys.exit(1)
+        try:
+            with open(dest, 'w', encoding='utf-8') as fh:
+                fh.write(text)
+            print('Saved config written to %s (%d bytes)' % (dest, len(text)))
+        except OSError as exc:
+            print('ERROR writing %s: %s' % (dest, exc), file=sys.stderr)
+            sys.exit(1)
+        sys.exit(0)
+
+    state = None
+    if not args.no_state:
+        print('Fetching running config for state-aware validation...')
+        dialect_before = args.dialect
+        state = fetch_state(session, args.dialect, debug=args.debug)
+        # Dialect may have been refined from config content; propagate back
+        args.dialect = session.dialect
+        if args.dialect != dialect_before:
+            print('Dialect refined: %s -> %s (from config content)' % (dialect_before, args.dialect))
+        if state:
+            hostname = state.hostname or fqdn
+            print('Ready: %d ports, %d VLANs, %d LAG groups' % (
+                len(state.ports), len(state.vlans), len(state.lacp_groups)))
+        else:
+            hostname = fqdn
+            print('(state fetch failed — validation disabled, continuing anyway)')
+    else:
+        hostname = fqdn
+
+    if _HAVE_READLINE:
+        completer = _Completer(state, args.dialect)
+        readline.set_completer(completer.complete)
+        readline.parse_and_bind('tab: complete')
+
+    context = ('top', None)
+
+    print('Type :help for meta-commands, Ctrl-D or :quit to exit.\n')
+
+    try:
+        while True:
+            try:
+                line = input(make_prompt(hostname, args.dialect, context))
+            except EOFError:
+                print()
+                break
+            except KeyboardInterrupt:
+                print()
+                continue
+
+            line_stripped = line.strip()
+            if not line_stripped:
+                continue
+
+            if line_stripped.startswith(':'):
+                state = handle_meta(line_stripped, session, state,
+                                    args.dialect, context, debug=args.debug,
+                                    hostname=hostname)
+                # Rebuild completer if state changed
+                if _HAVE_READLINE:
+                    completer = _Completer(state, args.dialect)
+                    readline.set_completer(completer.complete)
+                continue
+
+            # Update context before validation (so entering an interface
+            # block triggers checks on the next command, not the 'interface' line)
+            new_context = update_context(line_stripped, context, args.dialect)
+
+            # Validate against current context (before the transition)
+            warnings = validate_command(line_stripped, context, state, args.dialect)
+            if not confirm_warnings(warnings):
+                continue
+
+            # Apply context transition
+            context = new_context
+
+            # Pass-through mode: don't auto-manage system-view/user-view.
+            # The user controls mode transitions with system-view/quit/end.
+            try:
+                output = session.send_command(line_stripped, in_config_mode=None)
+            except SwitchSessionError as exc:
+                print('  ERROR: %s' % exc)
+                continue
+
+            if output.strip():
+                print(output)
+
+            # Refresh state after topology-changing commands
+            if state is not None and should_refresh(line_stripped, context, args.dialect):
+                state = fetch_state(session, args.dialect, debug=args.debug)
+                if state and _HAVE_READLINE:
+                    completer = _Completer(state, args.dialect)
+                    readline.set_completer(completer.complete)
+
+    finally:
+        if _HAVE_READLINE:
+            try:
+                readline.write_history_file(history_file)
+            except OSError:
+                pass
+        session.close()
+        print('Disconnected.')
+
+
+if __name__ == '__main__':
+    main()

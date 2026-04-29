@@ -1,36 +1,25 @@
-# Pull the saved (startup) configuration from switches and store locally.
-# Replaces bin/pull-switch-configs for inventory-managed switches - the old
-# .switches file therefore can also be removed.
-#
-# This uses a custom connection plugin to read the saved configuration, and then
-# save it - which removes all the problems of broken scp and sftp variants the
-# old shell script faced, and even works on switches which don't have scp or
-# sftp at all.
-#
-# The following assumes that all switches are part of a group 'switches'. They
-# should be excluded from other plays.
+---
+# Pull the saved (startup) configuration from all switches and store locally.
+# Replaces bin/pull-switch-configs for inventory-managed switches.
 #
 # Each switch host needs in host_vars or group_vars/switches.yml:
-#   ansible_host              optional switch IP or hostname. Only recommended
-#                             if set to an IP, otherwise it is either built from
-#                             inventory hostname or switch_host and switch_domain
-#   switch_host               hostname part if inventory name doesn't work
-#   switch_domain             domain part for building switch hostnames
-#   ansible_user              SSH user (default: management)
-#   switch_passdb_entry       password-store path for the SSH password, e.g.
-#                             switches/management
-#   ansible_password          optional password to use, recommended to use
-#                             password store instead
-#   switch_allow_agent        optional, set to true to allow SSH agent access.
-#                             Recommended way for using pubkey authentication.
-#   switch_dialect            optional; auto-detected from SSH banner and
-#                             version information. Check plugin code for
-#                             supported values.
-#   switch_command_timeout    seconds to wait for output (default 30)
-#   switch_config_dir         output directory, relative to the playbooks
-#                             directory (default: switch-configs)
-#   switch_config_format      filename as printf format, %s = inventory_hostname
-#                             (default: config.%s, matches legacy script naming)
+#   ansible_host               - switch IP or hostname
+#   ansible_user               - SSH user (default: management)
+#   switch_passdb_entry        - password-store path for the SSH password,
+#                                e.g. switches/management
+#   ansible_password           - set in group_vars/switches.yml, not here:
+#                                  "{{ lookup('community.general.passwordstore', switch_passdb_entry) }}"
+#   switch_dialect             - optional; auto-detected from SSH banner if omitted.
+#                                One of: routeros, hpe_procurve, fs_generic, fs_s3400,
+#                                fs_gigaeth, fs_vrp, fs_eth0, dell_os9, zyxel_xgs
+#
+# Tune per-host if needed:
+#   switch_command_timeout     - seconds to wait for output (default 30)
+#
+# Configurable at runtime via -e or group_vars/switches.yml:
+#   switch_config_dir     output directory (default: switch-configs)
+#   switch_config_format  filename as printf format, %s = inventory_hostname
+#                         (default: config.%s, matches legacy script naming)
 #
 # Usage:
 #   ansible-playbook playbooks/pull-switch-configs.yml
@@ -69,7 +58,6 @@
           - "switch_passdb_entry:   {{ switch_passdb_entry | default('(unset)') }}"
       delegate_to: localhost
       connection: local
-      when: ansible_verbosity >= 1
 
     - name: Fetch saved configuration
       raw: "__fetch_saved_config__"
