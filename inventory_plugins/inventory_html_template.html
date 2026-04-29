@@ -124,15 +124,6 @@ code{font-family:'SF Mono',ui-monospace,monospace;font-size:.82em;background:#ee
 .guest-chip{padding:3px 10px;border-radius:10px;font-size:.76rem;cursor:pointer;border:1px solid rgba(0,0,0,.08);transition:box-shadow .12s}
 .guest-chip:hover{box-shadow:0 1px 5px rgba(0,0,0,.18)}
 
-/* ---- switch panel view ---- */
-.sw-panel-wrap{padding:16px;display:flex;flex-direction:column;gap:28px}
-.sw-panel-title{font-size:.78rem;color:#888;margin-bottom:4px}
-.sw-host-link{cursor:pointer;transition:fill .1s}
-.sw-host-link:hover{fill:#0e8870!important}
-.sw-labels-hidden .sw-host-label{display:none}
-.sw-labels-hidden .sw-conn-line{display:none}
-#switch-diagram{overflow:auto}
-
 /* ---- workloads tab ---- */
 .wl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;align-items:start}
 .wl-card{background:#fff;border:1px solid #dde;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05)}
@@ -228,8 +219,11 @@ code{font-family:'SF Mono',ui-monospace,monospace;font-size:.82em;background:#ee
 
 <div id="tab-switch" class="tab-pane hidden">
   <div class="diagram-controls">
-    <label><input type="checkbox" id="sw-cb-labels" checked> Host labels</label>
+    <button id="sw-btn-fit">Fit view</button>
+    <label><input type="checkbox" id="sw-cb-physics"> Physics</label>
+    <label><input type="checkbox" id="sw-cb-labels" checked> Labels</label>
     <label><input type="checkbox" id="sw-cb-unconnected"> Show unconnected hosts</label>
+    <span style="font-size:12px;color:#888;margin-left:8px">Scroll to zoom · Drag to pan · Click node to highlight</span>
   </div>
   <div id="switch-diagram"></div>
 </div>
@@ -334,7 +328,7 @@ function _ifaceTier(key, iface) {
 
 function getPrimaryIP(host) {
   const nets = host.networks || {};
-  // Three passes: normal → mgmt → out-of-band
+  // Three passes: normal -> mgmt -> out-of-band
   for (const tier of [0, 1, 2]) {
     for (const [key, iface] of Object.entries(nets)) {
       if (_ifaceTier(key, iface) === tier && iface.ipv4) return iface.ipv4.replace(/\/.*$/, '');
@@ -774,7 +768,7 @@ function initDiagram() {
     });
   });
 
-  // Pre-compute host→network edges; track which nets each host connects to
+  // Pre-compute host->network edges; track which nets each host connects to
   // hostNets: { hostName: Set<netName> }
   const hostNets = {};
   hostList.forEach(([name, host]) => {
@@ -849,7 +843,7 @@ function initDiagram() {
 
     // Network node visibility: hide non-selected when a filter is active.
     // Use an explicit boolean — empty activeFilter short-circuits to '' which
-    // is falsy but not false, and vis-network may not un-hide on a '' → true
+    // is falsy but not false, and vis-network may not un-hide on a '' -> true
     // transition.  Also restore physics so re-shown nodes re-join simulation.
     nodes.update(Object.keys(networks).map(net => {
       const hidden = !netsVisible || (activeFilter !== '' && net !== activeFilter);
@@ -913,7 +907,7 @@ function initDiagram() {
 
 // ── Networks view ──────────────────────────────────────────────────────────────
 (function buildNetworksView() {
-  // Build an index: network name → [{host, iface, ifaceData}]
+  // Build an index: network name -> [{host, iface, ifaceData}]
   const netIndex = {};
   hostList.forEach(([name, host]) => {
     Object.entries(host.networks || {}).forEach(([iname, iface]) => {
@@ -1000,7 +994,7 @@ function initDiagram() {
 // ── Switch diagram ─────────────────────────────────────────────────────────────
 function initSwitchDiagram() {
   // ── Collect connections ────────────────────────────────────────────────────
-  const switchMap   = {};   // swName → [{host,hostData,port,vlan,iface}]
+  const switchMap   = {};   // swName -> [{host,hostData,port,vlan,iface}]
   const unconnected = [];
 
   hostList.forEach(([name, host]) => {
@@ -1016,34 +1010,28 @@ function initSwitchDiagram() {
     if (!hasSwitch) unconnected.push([name, host]);
   });
 
-  const container  = document.getElementById('switch-diagram');
   const switchNames = Object.keys(switchMap).sort();
+  const switchSet   = new Set(switchNames);
+  const container   = document.getElementById('switch-diagram');
 
   if (!switchNames.length) {
     container.innerHTML = '<p style="color:#888;padding:20px">No switch connections found in inventory.</p>';
     return;
   }
 
-  // ── Layout constants ───────────────────────────────────────────────────────
-  const PORT_W      = 22;   // column width per port slot
-  const PORT_SZ     = 16;   // port square size
-  const PORT_GAP    = 3;    // gap between rows
-  const SW_PADX     = 14;   // horizontal padding inside switch body
-  const SW_PADY     = 6;    // vertical padding above/below port rows
-  const SW_HDR      = 22;   // header height for switch name
-  const SW_BODY_H   = SW_HDR + SW_PADY + PORT_SZ * 2 + PORT_GAP + SW_PADY;
-  const CONN_LINE_H = 50;   // vertical line from switch bottom to label start
-  const LABEL_AREA  = 120;  // height reserved for 45°-rotated host labels
+  // ── Layout/drawing constants (network coordinate units) ───────────────────
+  const PORT_W   = 14;
+  const PORT_SZ  = 10;
+  const PORT_GAP = 2;
+  const SW_PADX  = 8;
+  const SW_PADY  = 3;
+  const SW_HDR   = 16;
 
   function canonicalPorts(maxP) {
-    for (const n of [8, 12, 16, 24, 28, 48, 52, 56, 96, 128]) {
-      if (maxP <= n) return n;
-    }
+    for (const n of [8, 12, 16, 24, 28, 48, 52, 56, 96, 128]) if (maxP <= n) return n;
     return maxP + 4;
   }
 
-  // Use explicit switch_ports from host vars if the switch is an inventory host,
-  // otherwise round max connected port up to a standard switch size.
   function getSwitchPorts(swName) {
     const swHost = hosts[swName];
     if (swHost && swHost.switch_ports) return +swHost.switch_ports;
@@ -1051,109 +1039,380 @@ function initSwitchDiagram() {
     return canonicalPorts(maxP);
   }
 
-  // Centre (cx, cy) of port p (1-based) inside the SVG.
-  // ≤12 ports: single row.  >12 ports: 2 rows, alternating (col=floor((p-1)/2), row=(p-1)%2).
-  function portCentre(p, numPorts) {
+  function switchDims(numPorts) {
     const twoRows = numPorts > 12;
+    const numCols = twoRows ? Math.ceil(numPorts / 2) : numPorts;
+    const W = SW_PADX * 2 + numCols * PORT_W;
+    const H = SW_HDR + SW_PADY + PORT_SZ * (twoRows ? 2 : 1) + (twoRows ? PORT_GAP : 0) + SW_PADY;
+    return { W, H, twoRows };
+  }
+
+  // Offset of port p's centre from the switch body centre (in network units).
+  // Matches the drawing coordinates used in ctxRenderer exactly.
+  function portOffset(numPorts, p) {
+    const { W, H, twoRows } = switchDims(numPorts);
     const col = twoRows ? Math.floor((p - 1) / 2) : (p - 1);
     const row = twoRows ? (p - 1) % 2 : 0;
-    const cx  = SW_PADX + col * PORT_W + PORT_W / 2;
-    const cy  = SW_HDR + SW_PADY + row * (PORT_SZ + PORT_GAP) + PORT_SZ / 2;
-    return { cx, cy };
+    // (PORT_W - PORT_SZ)/2 + PORT_SZ/2 simplifies to PORT_W/2
+    const dx = -W / 2 + SW_PADX + col * PORT_W + PORT_W / 2;
+    const dy = -H / 2 + SW_HDR + SW_PADY + row * (PORT_SZ + PORT_GAP) + PORT_SZ / 2;
+    return { dx, dy, row };
   }
 
-  // ── Build SVG per switch ───────────────────────────────────────────────────
-  let outer = '<div class="sw-panel-wrap">';
+  function rrect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);    ctx.arcTo(x + w, y,     x + w, y + r,     r);
+    ctx.lineTo(x + w, y + h - r);ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+    ctx.lineTo(x + r, y + h);    ctx.arcTo(x,     y + h, x, y + h - r,     r);
+    ctx.lineTo(x, y + r);        ctx.arcTo(x,     y,     x + r, y,         r);
+    ctx.closePath();
+  }
 
-  switchNames.forEach(swName => {
-    const numPorts  = getSwitchPorts(swName);
-    const numCols   = numPorts > 12 ? Math.ceil(numPorts / 2) : numPorts;
-    const svgW      = SW_PADX * 2 + numCols * PORT_W;
-    const svgH      = SW_BODY_H + CONN_LINE_H + LABEL_AREA;
-    const conns     = switchMap[swName];
-    const portConns = {};   // port → [{host,hostData,vlan,iface}]
-    conns.forEach(c => { (portConns[c.port] = portConns[c.port] || []).push(c); });
+  // ctxRenderer closure: draws the switch panel on the vis-network canvas.
+  function makeSwRenderer(swName, portConns, numPorts) {
+    const { W, H, twoRows } = switchDims(numPorts);
+    return function({ ctx, x, y, state: { selected, hover } }) {
+      const drawNode = () => {
+        const rx = x - W / 2, ry = y - H / 2;
+        rrect(ctx, rx, ry, W, H, 3);
+        ctx.fillStyle = '#2c3e50';  ctx.fill();
+        ctx.strokeStyle = selected ? '#ecf0f1' : (hover ? '#2ecc71' : '#1abc9c');
+        ctx.lineWidth = selected ? 2 : 1;  ctx.stroke();
+        ctx.fillStyle = '#1abc9c';
+        ctx.font = `bold ${Math.max(8, SW_HDR - 6)}px system-ui,sans-serif`;
+        ctx.textAlign = 'center';  ctx.textBaseline = 'top';
+        ctx.fillText(swName, x, ry + 3);
+        ctx.font = `${Math.max(5, PORT_SZ - 4)}px system-ui,sans-serif`;
+        for (let p = 1; p <= numPorts; p++) {
+          const col = twoRows ? Math.floor((p - 1) / 2) : (p - 1);
+          const row = twoRows ? (p - 1) % 2 : 0;
+          const px = rx + SW_PADX + col * PORT_W + (PORT_W - PORT_SZ) / 2;
+          const py = ry + SW_HDR + SW_PADY + row * (PORT_SZ + PORT_GAP);
+          const used = portConns[p] !== undefined;
+          rrect(ctx, px, py, PORT_SZ, PORT_SZ, 1.5);
+          ctx.fillStyle = used ? '#1abc9c' : '#3d566e';  ctx.fill();
+          ctx.strokeStyle = used ? '#0e8870' : '#4a6278';
+          ctx.lineWidth = 0.5;  ctx.stroke();
+          ctx.fillStyle = used ? '#fff' : '#7f8c8d';
+          ctx.textAlign = 'center';  ctx.textBaseline = 'middle';
+          ctx.fillText(p, px + PORT_SZ / 2, py + PORT_SZ / 2);
+        }
+      };
+      return { drawNode, nodeDimensions: { width: W, height: H } };
+    };
+  }
 
-    let svg = `<svg width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}" style="display:block;overflow:visible">`;
+  // ── Topology: BFS switch levels (access=0, core=highest) ──────────────────
+  const swUplinkTargets = {};
+  switchNames.forEach(sw => { swUplinkTargets[sw] = []; });
+  switchNames.forEach(sw => {
+    (switchMap[sw] || []).forEach(c => {
+      if (switchSet.has(c.host)) swUplinkTargets[sw].push(c.host);
+    });
+  });
+  const accessSwitches = switchNames.filter(sw => swUplinkTargets[sw].length === 0);
+  const swLevel = {};
+  const bfsQueue = (accessSwitches.length ? accessSwitches : [switchNames[0]])
+                   .map(sw => ({ sw, level: 0 }));
+  const bfsVisited = new Set();
+  while (bfsQueue.length) {
+    const { sw, level } = bfsQueue.shift();
+    if (bfsVisited.has(sw)) continue;
+    bfsVisited.add(sw); swLevel[sw] = level;
+    swUplinkTargets[sw].forEach(up => { if (!bfsVisited.has(up)) bfsQueue.push({ sw: up, level: level + 1 }); });
+  }
+  switchNames.forEach(sw => { if (swLevel[sw] === undefined) swLevel[sw] = 0; });
 
-    // Switch body
-    svg += `<rect x="0" y="0" width="${svgW}" height="${SW_BODY_H}" rx="4"
-              fill="#2c3e50" stroke="#1abc9c" stroke-width="1.5"/>`;
-    svg += `<text x="${svgW / 2}" y="${SW_HDR - 6}" text-anchor="middle"
-              fill="#1abc9c" font-size="11" font-weight="bold" font-family="system-ui,sans-serif">${swName}</text>`;
+  const byLevel = {};
+  switchNames.forEach(sw => { (byLevel[swLevel[sw]] = byLevel[swLevel[sw]] || []).push(sw); });
+  // Space switches based on actual widths.  Within each BFS level, switches wrap
+  // into rows of MAX_PER_ROW so the canvas is used in 2D instead of a single line.
+  // Level 0 (access) rows go downward; higher levels go upward from y=0.
+  const SW_X_MARGIN = 30;
+  const HOST_MARGIN = 90;
+  const HOST_ROW_STEP = 55;   // vertical step per extra host row
+  const maxSwH = Math.max(...switchNames.map(sw => switchDims(getSwitchPorts(sw)).H));
+  const SW_Y_GAP = maxSwH + 2 * HOST_MARGIN + 80;
 
-    // Port squares
-    for (let p = 1; p <= numPorts; p++) {
-      const { cx, cy } = portCentre(p, numPorts);
-      const used   = portConns[p] !== undefined;
-      const fill   = used ? '#1abc9c' : '#3d566e';
-      const stroke = used ? '#0e8870' : '#556677';
-      svg += `<rect x="${cx - PORT_SZ / 2}" y="${cy - PORT_SZ / 2}"
-                width="${PORT_SZ}" height="${PORT_SZ}" rx="2"
-                fill="${fill}" stroke="${stroke}" stroke-width="0.5"/>`;
-      svg += `<text x="${cx}" y="${cy + 3}" text-anchor="middle"
-                fill="${used ? '#fff' : '#7f8c8d'}" font-size="7" font-family="system-ui,sans-serif">${p}</text>`;
+  // Auto-size MAX_PER_ROW: roughly square grid (at least 2, at most 5)
+  const MAX_PER_ROW = Math.min(5, Math.max(2, Math.ceil(Math.sqrt(switchNames.length))));
+
+  const maxLevel = switchNames.reduce((m, sw) => Math.max(m, swLevel[sw]), 0);
+
+  function placeLevel(sws, getY) {
+    const numSubRows = Math.ceil(sws.length / MAX_PER_ROW);
+    for (let sr = 0; sr < numSubRows; sr++) {
+      const row = sws.slice(sr * MAX_PER_ROW, (sr + 1) * MAX_PER_ROW);
+      const widths = row.map(sw => switchDims(getSwitchPorts(sw)).W);
+      const total  = widths.reduce((a, b) => a + b, 0) + (row.length - 1) * SW_X_MARGIN;
+      let xCursor  = -total / 2;
+      row.forEach((sw, i) => {
+        swInitPos[sw] = { x: xCursor + widths[i] / 2, y: getY(sr) };
+        xCursor += widths[i] + SW_X_MARGIN;
+      });
     }
+    return Math.ceil(sws.length / MAX_PER_ROW);
+  }
 
-    // Connection lines and rotated host labels for used ports
-    Object.entries(portConns).forEach(([portStr, hostConns]) => {
-      const p        = +portStr;
-      const { cx }   = portCentre(p, numPorts);
-      const lineTopY = SW_BODY_H;
-      const lineEndY = SW_BODY_H + CONN_LINE_H;
+  const swInitPos = {};
+  // Level 0: rows go downward (y = 0, +SW_Y_GAP, +2*SW_Y_GAP, …)
+  placeLevel(byLevel[0] || [], sr => sr * SW_Y_GAP);
+  // Higher levels: stack upward, one level stacked on top of the last
+  let yTop = -SW_Y_GAP;
+  for (let l = 1; l <= maxLevel; l++) {
+    const sws = byLevel[l] || [];
+    if (!sws.length) continue;
+    const used = placeLevel(sws, sr => yTop - sr * SW_Y_GAP);
+    yTop -= used * SW_Y_GAP;
+  }
 
-      svg += `<line x1="${cx}" y1="${lineTopY}" x2="${cx}" y2="${lineEndY}"
-                class="sw-conn-line" stroke="#1abc9c" stroke-width="1.5" stroke-dasharray="4,2"/>`;
-
-      hostConns.forEach((c, idx) => {
-        const labelY = lineEndY + idx * 16;
-        const label  = c.vlan ? `${c.host} [${c.vlan}]` : c.host;
-        svg += `<g class="sw-host-label" transform="translate(${cx},${labelY}) rotate(-45)">` +
-               `<text x="4" y="0" dominant-baseline="auto" text-anchor="start"` +
-               ` fill="#2c3e50" font-size="11" font-family="system-ui,sans-serif"` +
-               ` class="sw-host-link" data-host="${c.host}">${label}</text>` +
-               `</g>`;
+  // ── Pre-compute initial host positions ────────────────────────────────────
+  // Each host is placed directly above/below its port column (x = swX + portDx)
+  // so the connection runs straight vertically.  If two hosts on the same switch
+  // side are within MIN_H_SPACING horizontally their lines would visually cross,
+  // so we stagger them into extra distance rows (longer line, still straight).
+  const MIN_H_SPACING = 55;
+  const hostInitPos  = {};
+  const hostPlaced   = new Set();
+  switchNames.forEach(sw => {
+    const { x: swX, y: swY } = swInitPos[sw];
+    const numPorts = getSwitchPorts(sw);
+    const { H, twoRows } = switchDims(numPorts);
+    const sides = { above: [], below: [] };
+    (switchMap[sw] || []).forEach(c => {
+      if (switchSet.has(c.host)) return;
+      if (hostPlaced.has(c.host)) return;
+      hostPlaced.add(c.host);
+      const { dx, row } = portOffset(numPorts, c.port);
+      sides[(twoRows && row === 0) ? 'above' : 'below'].push({ host: c.host, portX: swX + dx });
+    });
+    ['above', 'below'].forEach(side => {
+      const list = sides[side];
+      if (!list.length) return;
+      const baseY = side === 'above'
+        ? swY - H / 2 - HOST_MARGIN
+        : swY + H / 2 + HOST_MARGIN;
+      const dir = side === 'above' ? -1 : 1;
+      list.sort((a, b) => a.portX - b.portX);
+      // Greedy row assignment: each node goes in the lowest row where its portX
+      // is at least MIN_H_SPACING away from the last node placed in that row.
+      const rowLastX = [];
+      list.forEach(h => {
+        let r = 0;
+        while (rowLastX[r] !== undefined && h.portX - rowLastX[r] < MIN_H_SPACING) r++;
+        rowLastX[r] = h.portX;
+        hostInitPos[h.host] = { x: h.portX, y: baseY + dir * r * HOST_ROW_STEP };
       });
     });
-
-    svg += '</svg>';
-
-    outer += `<div class="sw-panel">` +
-             `<div class="sw-panel-title">${swName} &mdash; ${numPorts} ports, ${conns.length} connection${conns.length !== 1 ? 's' : ''}</div>` +
-             svg +
-             `</div>`;
   });
 
-  // Unconnected hosts section (toggled by checkbox)
-  if (unconnected.length) {
-    outer += `<div id="sw-unconnected-section" style="display:none">` +
-             `<div style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#888;margin-bottom:8px">Unconnected hosts</div>` +
-             `<div style="display:flex;flex-wrap:wrap;gap:6px">` +
-             unconnected.map(([name, h]) => {
-               const bg = typeColor(h.type);
-               const fg = contrastFg(bg);
-               return `<span class="sw-host-link badge" data-host="${name}" style="background:${bg};color:${fg}">${name}</span>`;
-             }).join('') +
-             `</div></div>`;
-  }
-
-  outer += '</div>';
-  container.innerHTML = outer;
-
-  // Click handlers for host labels and unconnected badges
-  container.querySelectorAll('.sw-host-link').forEach(el => {
-    el.addEventListener('click', () => showHostDetail(el.dataset.host));
+  // ── Build port-node offset table ───────────────────────────────────────────
+  // For each switch, pre-compute the (dx,dy) of each used port relative to the
+  // switch body centre.  Port nodes are invisible vis-network nodes placed at
+  // those exact positions so that edges terminate at the correct port square.
+  const swPortOffsets = {};  // swName -> Map<portNum, {dx,dy}>
+  switchNames.forEach(sw => {
+    const numPorts = getSwitchPorts(sw);
+    const usedPorts = new Set((switchMap[sw] || []).map(c => c.port));
+    const map = new Map();
+    usedPorts.forEach(p => { map.set(p, portOffset(numPorts, p)); });
+    swPortOffsets[sw] = map;
   });
 
-  // Labels toggle: hide/show the connector lines and rotated labels
+  // ── Build vis DataSets ─────────────────────────────────────────────────────
+  const nodes = new vis.DataSet();
+  const edges = new vis.DataSet();
+
+  // Switch body nodes
+  switchNames.forEach(sw => {
+    const numPorts  = getSwitchPorts(sw);
+    const portConns = {};
+    (switchMap[sw] || []).forEach(c => { (portConns[c.port] = portConns[c.port] || []).push(c); });
+    const { x, y } = swInitPos[sw];
+    nodes.add({
+      id:          'sw:' + sw,
+      label:       sw,
+      shape:       'custom',
+      ctxRenderer: makeSwRenderer(sw, portConns, numPorts),
+      x, y,
+      mass:        4,
+      group:       '__switch__',
+    });
+  });
+
+  // Port nodes — invisible fixed points; edges connect here instead of to the switch body.
+  // vis-network draws edges before nodes, so the switch body panel is painted on top,
+  // hiding the edge segment that runs inside the panel — only the outer portion is visible.
+  switchNames.forEach(sw => {
+    const { x: swX, y: swY } = swInitPos[sw];
+    swPortOffsets[sw].forEach(({ dx, dy }, p) => {
+      nodes.add({
+        id:      `port:${sw}:${p}`,
+        label:   '',
+        shape:   'dot',
+        size:    0,
+        color:   { background: 'rgba(0,0,0,0)', border: 'rgba(0,0,0,0)' },
+        font:    { size: 0 },
+        x:       swX + dx,
+        y:       swY + dy,
+        physics: false,
+        fixed:   { x: true, y: true },
+        group:   '__port__',
+      });
+    });
+  });
+
+  // Host nodes + edges
+  const edgeSeen = new Set();
+  switchNames.forEach(sw => {
+    const { x: swX, y: swY } = swInitPos[sw];
+    (switchMap[sw] || []).forEach(({ host, hostData, port, vlan }) => {
+      const edgeKey = `${host}|${sw}|${port}`;
+      if (edgeSeen.has(edgeKey)) return;
+      edgeSeen.add(edgeKey);
+
+      const toNode = `port:${sw}:${port}`;
+
+      if (switchSet.has(host)) {
+        // Switch-to-switch uplink: thick teal edge, curved so it clears the panels
+        edges.add({
+          from:   'sw:' + host,
+          to:     toNode,
+          label:  `p${port}`,
+          font:   { size: 10, color: '#1abc9c', strokeWidth: 2, strokeColor: '#fff' },
+          color:  { color: '#1abc9c', highlight: '#2ecc71' },
+          width:  3,
+          smooth: { type: 'curvedCW', roundness: 0.3 },
+        });
+        return;
+      }
+
+      // Regular host node (add once)
+      if (!nodes.get('host:' + host)) {
+        const bg  = typeColor(hostData.type);
+        const ip  = getPrimaryIP(hostData);
+        const pos = hostInitPos[host] || { x: swX, y: swY + 130 };
+        nodes.add({
+          id:    'host:' + host,
+          label: host,
+          title: `<b>${host}</b><br>Type: ${hostData.type||'?'}${ip?'<br>IP: '+ip:''}`,
+          shape: 'dot',
+          size:  10,
+          color: { background: bg, border: bg, highlight: { background: bg, border: '#fff' } },
+          font:  { size: 11, color: '#333' },
+          group: hostData.type || 'unknown',
+          x: pos.x,
+          y: pos.y,
+        });
+      }
+
+      const label = vlan ? `p${port}\n${vlan}` : `p${port}`;
+      edges.add({
+        from:   'host:' + host,
+        to:     toNode,
+        label,
+        font:   { size: 9, color: '#555', align: 'middle', strokeWidth: 2, strokeColor: '#fff' },
+        color:  { color: '#aaa', highlight: '#1abc9c', opacity: 0.8 },
+        width:  1.5,
+        smooth: { enabled: false },   // straight lines aim precisely at the port
+      });
+    });
+  });
+
+  // Unconnected hosts (hidden by default)
+  unconnected.forEach(([name, host]) => {
+    if (nodes.get('host:' + name)) return;
+    const bg = typeColor(host.type);
+    const ip = getPrimaryIP(host);
+    nodes.add({
+      id:     'host:' + name,
+      label:  name,
+      title:  `<b>${name}</b><br>Type: ${host.type||'?'}${ip?'<br>IP: '+ip:''}`,
+      shape:  'dot', size: 8,
+      color:  { background: bg, border: bg, highlight: { background: bg, border: '#fff' } },
+      font:   { size: 11, color: '#333' },
+      group:  host.type || 'unknown',
+      hidden: true,
+    });
+  });
+
+  // ── vis.Network ────────────────────────────────────────────────────────────
+  const visNet = new vis.Network(container, { nodes, edges }, {
+    physics: {
+      enabled: false,
+      barnesHut: { gravitationalConstant: -1500, centralGravity: 0.5,
+                   springLength: 80, springConstant: 0.1, damping: 0.7 },
+      minVelocity: 0.75,
+    },
+    interaction: { hover: true, tooltipDelay: 80 },
+    nodes:  { borderWidth: 1 },
+    edges:  { font: { strokeWidth: 2, strokeColor: '#fff' } },
+    layout: { improvedLayout: false },
+  });
+
+  visNet.once('afterDrawing', () => visNet.fit({ animation: false }));
+
+  // ── Keep port nodes glued to their switch body ─────────────────────────────
+  // Port nodes are fixed (physics never moves them). We keep them aligned by
+  // directly writing into vis-network's internal body state in beforeDrawing,
+  // which fires every render frame. This avoids going through the DataSet
+  // (which would set a dirty flag and trigger an infinite re-render loop).
+  visNet.on('beforeDrawing', () => {
+    const body = visNet.body.nodes;
+    switchNames.forEach(sw => {
+      const swNode = body['sw:' + sw];
+      if (!swNode) return;
+      (swPortOffsets[sw] || new Map()).forEach(({ dx, dy }, p) => {
+        const pn = body[`port:${sw}:${p}`];
+        if (pn) { pn.x = swNode.x + dx; pn.y = swNode.y + dy; }
+      });
+    });
+  });
+
+  // Freeze any manually-dragged node in place so it stops drifting.
+  // setTimeout(0) defers the update until after vis-network's own dragEnd
+  // processing (which would otherwise re-release the node to physics).
+  visNet.on('dragEnd', params => {
+    const toFix = params.nodes.filter(id => !id.startsWith('port:'));
+    if (!toFix.length) return;
+    setTimeout(() => {
+      nodes.update(toFix.map(id => ({ id, fixed: { x: true, y: true } })));
+    }, 0);
+  });
+
+  // ── Interaction ────────────────────────────────────────────────────────────
+  visNet.on('click', params => {
+    if (!params.nodes.length) {
+      visNet.unselectAll();
+      nodes.update(nodes.get()
+        .filter(n => !n.id.startsWith('port:'))
+        .map(n => ({ id: n.id, opacity: 1 })));
+      return;
+    }
+    const sel = params.nodes[0];
+    if (sel.startsWith('port:')) return;   // ignore clicks on invisible port anchors
+    if (sel.startsWith('host:')) showHostDetail(sel.slice(5));
+    const connected = new Set(visNet.getConnectedNodes(sel));
+    connected.add(sel);
+    nodes.update(nodes.get()
+      .filter(n => !n.id.startsWith('port:'))
+      .map(n => ({ id: n.id, opacity: connected.has(n.id) ? 1 : 0.15 })));
+  });
+
+  document.getElementById('sw-btn-fit').addEventListener('click', () => visNet.fit({ animation: true }));
+  document.getElementById('sw-cb-physics').addEventListener('change', e =>
+    visNet.setOptions({ physics: { enabled: e.target.checked } }));
   document.getElementById('sw-cb-labels').addEventListener('change', e => {
-    container.classList.toggle('sw-labels-hidden', !e.target.checked);
+    const sz = e.target.checked ? 11 : 0;
+    nodes.update(nodes.get()
+      .filter(n => !n.id.startsWith('sw:') && !n.id.startsWith('port:'))
+      .map(n => ({ id: n.id, font: { size: sz } })));
   });
-
-  // Unconnected hosts toggle
   document.getElementById('sw-cb-unconnected').addEventListener('change', e => {
-    const sec = document.getElementById('sw-unconnected-section');
-    if (sec) sec.style.display = e.target.checked ? '' : 'none';
+    const show = e.target.checked;
+    const ids  = unconnected.map(([name]) => 'host:' + name).filter(id => nodes.get(id));
+    nodes.update(ids.map(id => ({ id, hidden: !show })));
   });
 }
 
