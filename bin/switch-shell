@@ -80,6 +80,7 @@ except ImportError:
     _HAVE_YAML = False
 
 _CONFIG_PATHS = [
+    os.path.expanduser('.switch-shell.yaml'),
     os.path.expanduser('~/.config/switch-shell.yaml'),
     os.path.expanduser('~/.switch-shell.yaml'),
 ]
