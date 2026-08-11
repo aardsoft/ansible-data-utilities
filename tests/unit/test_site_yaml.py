@@ -497,3 +497,148 @@ class TestSynthesizeHostNetworkMetadata:
             default_vars={'dns_domain': 'example.com'},
         )
         assert result['hosts']['h']['networks']['if0']['resolved_vlan'] == 'mgmt'
+
+
+# ---------------------------------------------------------------------------
+# _parse_sockets
+# ---------------------------------------------------------------------------
+
+class TestParseSockets:
+    def _run(self, sockets):
+        plugin = make_plugin()
+        vk = make_valid_keys()
+        data = {'sockets': sockets, 'hosts': {}, 'default_vars': {}}
+        parser = {'errors': [], 'warnings': []}
+        parser, data = plugin._parse_sockets(data, vk, parser)
+        return data['sockets'], parser
+
+    def test_upstream_string_normalised_to_list(self):
+        sockets, _ = self._run({
+            'wall-a1': {'type': 'power_outlet'},
+            'ups-1': {'type': 'ups_output', 'upstream': 'wall-a1'},
+        })
+        assert sockets['ups-1']['upstream'] == ['wall-a1']
+
+    def test_upstream_list_unchanged(self):
+        sockets, _ = self._run({
+            'wall-a1': {'type': 'power_outlet'},
+            'ups-1': {'type': 'ups_output', 'upstream': ['wall-a1']},
+        })
+        assert sockets['ups-1']['upstream'] == ['wall-a1']
+
+    def test_missing_upstream_defaults_to_empty_list(self):
+        sockets, _ = self._run({'wall-a1': {'type': 'power_outlet'}})
+        assert sockets['wall-a1']['upstream'] == []
+
+    def test_missing_type_produces_warning(self):
+        _, parser = self._run({'wall-a1': {}})
+        assert any('no type' in w for w in parser['warnings'])
+
+    def test_unknown_upstream_ref_produces_error(self):
+        _, parser = self._run({
+            'ups-1': {'type': 'ups_output', 'upstream': 'nonexistent'},
+        })
+        assert any('nonexistent' in e for e in parser['errors'])
+
+    def test_non_dict_sockets_section_produces_error(self):
+        plugin = make_plugin()
+        vk = make_valid_keys()
+        data = {'sockets': 'bad', 'hosts': {}, 'default_vars': {}}
+        parser = {'errors': [], 'warnings': []}
+        plugin._parse_sockets(data, vk, parser)
+        assert parser['errors']
+
+    def test_non_dict_socket_entry_produces_error(self):
+        _, parser = self._run({'wall-a1': 'bad'})
+        assert parser['errors']
+
+
+# ---------------------------------------------------------------------------
+# _build_dependency_graph
+# ---------------------------------------------------------------------------
+
+class TestBuildDependencyGraph:
+    def _run(self, sockets=None, hosts=None):
+        plugin = make_plugin()
+        vk = make_valid_keys()
+        data = {
+            'sockets': sockets or {},
+            'hosts': hosts or {},
+            'default_vars': {},
+        }
+        parser = {'errors': [], 'warnings': []}
+        # normalise sockets first (as the real flow does)
+        if sockets:
+            parser, data = plugin._parse_sockets(data, vk, parser)
+        parser, data = plugin._build_dependency_graph(data, vk, parser)
+        return data['dependency_graph'], parser
+
+    def test_socket_nodes_created(self):
+        graph, _ = self._run(sockets={
+            'wall-a1': {'type': 'power_outlet'},
+        })
+        assert 'wall-a1' in graph
+        assert graph['wall-a1']['domain'] == 'power'
+
+    def test_host_with_power_socket_added_as_compute_node(self):
+        graph, _ = self._run(
+            sockets={'ups-1': {'type': 'ups_output'}},
+            hosts={'srv1': {'type': 'server', 'power_socket': 'ups-1'}},
+        )
+        assert 'srv1' in graph
+        assert graph['srv1']['domain'] == 'compute'
+
+    def test_upstream_chain_resolved(self):
+        graph, _ = self._run(sockets={
+            'wall-a1': {'type': 'power_outlet'},
+            'pdu-a':   {'type': 'pdu_port',   'upstream': 'wall-a1'},
+            'ups-1':   {'type': 'ups_output',  'upstream': 'pdu-a'},
+        })
+        assert graph['ups-1']['upstream_chain'] == ['pdu-a', 'wall-a1']
+
+    def test_dependents_computed(self):
+        graph, _ = self._run(sockets={
+            'wall-a1': {'type': 'power_outlet'},
+            'ups-1':   {'type': 'ups_output', 'upstream': 'wall-a1'},
+        })
+        assert 'ups-1' in graph['wall-a1']['dependents']
+
+    def test_host_dependents_on_socket(self):
+        graph, _ = self._run(
+            sockets={'ups-1': {'type': 'ups_output'}},
+            hosts={'srv1': {'type': 'server', 'power_socket': 'ups-1'}},
+        )
+        assert 'srv1' in graph['ups-1']['dependents']
+
+    def test_invalid_power_socket_ref_produces_error(self):
+        _, parser = self._run(
+            sockets={},
+            hosts={'srv1': {'type': 'server', 'power_socket': 'nonexistent'}},
+        )
+        assert any('nonexistent' in e for e in parser['errors'])
+
+    def test_redundant_power_sockets_both_in_upstream(self):
+        graph, _ = self._run(
+            sockets={
+                'ups-1': {'type': 'ups_output'},
+                'ups-2': {'type': 'ups_output'},
+            },
+            hosts={'srv1': {'type': 'server', 'power_socket': ['ups-1', 'ups-2']}},
+        )
+        assert set(graph['srv1']['upstream']) == {'ups-1', 'ups-2'}
+
+    def test_chain_not_repeated_with_shared_upstream(self):
+        # ups-1 and ups-2 both feed from the same wall socket; chain should
+        # list wall-a1 once for ups-1 and once for ups-2 (no cross-contamination)
+        graph, _ = self._run(sockets={
+            'wall-a1': {'type': 'power_outlet'},
+            'ups-1':   {'type': 'ups_output', 'upstream': 'wall-a1'},
+            'ups-2':   {'type': 'ups_output', 'upstream': 'wall-a1'},
+        })
+        assert graph['ups-1']['upstream_chain'] == ['wall-a1']
+        assert graph['ups-2']['upstream_chain'] == ['wall-a1']
+
+    def test_no_sockets_section_produces_empty_graph(self):
+        graph, parser = self._run()
+        assert graph == {}
+        assert not parser['errors']

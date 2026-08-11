@@ -112,6 +112,13 @@ DOCUMENTATION = '''
         ini:
           - key: networks_key
             section: site_yaml
+      sockets_key:
+        description: key name containing socket infrastructure definitions
+        type: string
+        default: sockets
+        ini:
+          - key: sockets_key
+            section: site_yaml
       generate_dhcp_networks:
         description: generate the legacy dhcp_networks variable out of networks
         type: bool
@@ -374,6 +381,7 @@ class InventoryModule(BaseInventoryPlugin):
             "networks": self.get_option('networks_key'),
             "groups": self.get_option('groups_key'),
             "hosts": self.get_option('hosts_key'),
+            "sockets": self.get_option('sockets_key'),
             "networks_templates": self.get_option('networks_key')+"_templates",
             "groups_templates": self.get_option('groups_key')+"_templates",
             "hosts_templates": self.get_option('hosts_key')+"_templates",
@@ -400,6 +408,11 @@ class InventoryModule(BaseInventoryPlugin):
             parser, parsed_data=self._synthesize_host_topology(parsed_data, valid_keys, parser)
         else:
             raise AnsibleParserError("No hosts key (%s) found, can't continue." % valid_keys['hosts'])
+
+        if valid_keys['sockets'] in keys:
+            parser, parsed_data=self._parse_sockets(parsed_data, valid_keys, parser)
+
+        parser, parsed_data=self._build_dependency_graph(parsed_data, valid_keys, parser)
 
         if self.get_option('dump_file') != "":
             with open(self.get_option('dump_file'), "w") as inventoryDump:
@@ -447,6 +460,9 @@ class InventoryModule(BaseInventoryPlugin):
             raise AnsibleParserError("Above errors found parsing site data")
 
         parser,hosts=self._parse_hosts(parsed_data, parser, False, valid_keys)
+
+        if 'dependency_graph' in parsed_data:
+            self.inventory.set_variable("all", "dependency_graph", parsed_data['dependency_graph'])
 
         if self.get_option('inventory_dump_file') != "":
             self._dump_inventory(self.get_option('inventory_dump_file'))
@@ -602,6 +618,31 @@ structures provided by this. '''
                         if not network['addresses']:
                             # we don't want {} for hosts without any addresses configured
                             del network['addresses']
+
+                        # Merge external_ipv4/external_ipv6 scalar keys into
+                        # external_addresses (for DNS generation by tinydns).
+                        if network.get('external_addresses') is None:
+                            network['external_addresses'] = {}
+                        if network.get('external_ipv4') is not None and network['external_ipv4'] not in network['external_addresses']:
+                            network['external_addresses'][network['external_ipv4']] = {}
+                        if isinstance(network.get('external_ipv6'), str) and network['external_ipv6'] not in network['external_addresses']:
+                            network['external_addresses'][network['external_ipv6']] = {}
+                        if not network['external_addresses']:
+                            del network['external_addresses']
+
+                        if network.get('external_addresses') is not None:
+                            _valid_external_address_keys = {'names'}
+                            for address in network.get('external_addresses'):
+                                address_struct = network['external_addresses'][address]
+                                if address_struct is not None:
+                                    unknown = set(address_struct.keys()) - _valid_external_address_keys
+                                    if unknown:
+                                        parser['errors'].append(
+                                            "%s: unknown external_address struct key(s) for %s: %s"
+                                            % (host, address, ', '.join(sorted(unknown))))
+                                    if 'names' in address_struct and not isinstance(address_struct['names'], list):
+                                        parser['errors'].append(
+                                            "%s: names for %s must be a list" % (host, address))
 
                         if network.get('addresses') is not None:
                             _valid_address_keys = {
@@ -1313,6 +1354,113 @@ structures provided by this. '''
 
         return parser, data
 
+    def _parse_sockets(self, data, valid_keys, parser):
+        ''' Validate and normalize the sockets section.
+
+        Ensures each socket has a type (warning if missing), normalizes
+        upstream to a list, and validates that upstream references exist.
+        '''
+        sockets = data.get(valid_keys['sockets'], {})
+        if not isinstance(sockets, dict):
+            parser['errors'].append("sockets section must be a dict")
+            return parser, data
+
+        for name, sock in sockets.items():
+            if not isinstance(sock, dict):
+                parser['errors'].append("socket %s must be a dict" % name)
+                continue
+            if 'type' not in sock:
+                parser['warnings'].append("socket %s has no type" % name)
+            upstream = sock.get('upstream')
+            if upstream is None:
+                data[valid_keys['sockets']][name]['upstream'] = []
+            elif isinstance(upstream, str):
+                data[valid_keys['sockets']][name]['upstream'] = [upstream]
+            for ref in data[valid_keys['sockets']][name].get('upstream', []):
+                if ref not in sockets:
+                    parser['errors'].append(
+                        "socket %s upstream '%s' not found in sockets" % (name, ref))
+
+        return parser, data
+
+    def _build_dependency_graph(self, data, valid_keys, parser):
+        ''' Build the cross-domain dependency graph.
+
+        Seeds graph nodes from the sockets section (power domain), then adds
+        compute nodes for any host that declares a power_socket.  Computes
+        dependents by inverting upstream edges, and resolves full upstream
+        chains for each node using BFS (closest upstream first).
+
+        Stores the result in data['dependency_graph'] for consumption by
+        _parse_hosts (per-host vars) and the all-group variable set after
+        the host parse pass.
+        '''
+        sockets = data.get(valid_keys['sockets'], {})
+        hosts = data.get(valid_keys['hosts'], {})
+        graph = {}
+
+        for name, sock in sockets.items():
+            if not isinstance(sock, dict):
+                continue
+            graph[name] = {
+                'domain': 'power',
+                'type': sock.get('type', 'unknown'),
+                'upstream': sock.get('upstream', []),
+                'dependents': [],
+                'location': sock.get('location'),
+                'description': sock.get('description'),
+                'properties': sock.get('properties', {}),
+            }
+
+        for host_name, host_def in hosts.items():
+            if not isinstance(host_def, dict):
+                continue
+            power_socket = host_def.get('power_socket')
+            if power_socket is None:
+                continue
+            if isinstance(power_socket, str):
+                power_socket = [power_socket]
+            valid_refs = []
+            for ref in power_socket:
+                if ref not in graph:
+                    parser['errors'].append(
+                        "host %s power_socket '%s' not found in sockets" % (host_name, ref))
+                else:
+                    valid_refs.append(ref)
+            if valid_refs:
+                graph[host_name] = {
+                    'domain': 'compute',
+                    'type': host_def.get('type', 'unknown'),
+                    'upstream': valid_refs,
+                    'dependents': [],
+                }
+
+        for node_name, node in graph.items():
+            for upstream_name in node['upstream']:
+                if upstream_name in graph:
+                    if node_name not in graph[upstream_name]['dependents']:
+                        graph[upstream_name]['dependents'].append(node_name)
+
+        def _upstream_chain(start):
+            chain = []
+            seen = set()
+            queue = list(graph[start]['upstream'])
+            while queue:
+                node = queue.pop(0)
+                if node in seen:
+                    continue
+                seen.add(node)
+                chain.append(node)
+                if node in graph:
+                    queue.extend(graph[node]['upstream'])
+            return chain
+
+        for node_name in graph:
+            graph[node_name]['upstream_chain'] = _upstream_chain(node_name)
+
+        data['dependency_graph'] = graph
+        return parser, data
+
     def _parse_hosts(self, data, parser, dryrun, valid_keys):
         ''' Add hosts with appropriate groups and host vars. '''
 
@@ -1359,6 +1507,16 @@ structures provided by this. '''
                         if isinstance(switch_vars, dict):
                             for var, value in switch_vars.items():
                                 self.inventory.set_variable(host, "switch_%s" % var, value)
+
+                    dep_graph = data.get('dependency_graph', {})
+                    if host in dep_graph:
+                        chain = dep_graph[host].get('upstream_chain', [])
+                        self.inventory.set_variable(host, 'power_socket_chain', chain)
+                        ups_protected = any(
+                            dep_graph.get(s, {}).get('type') in {'ups_output', 'ups'}
+                            for s in chain
+                        )
+                        self.inventory.set_variable(host, 'ups_protected', ups_protected)
 
                     # type-specific host setup via registered extension
                     if host_type in self._extension_registry:

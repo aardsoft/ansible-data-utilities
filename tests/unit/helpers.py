@@ -31,6 +31,7 @@ DEFAULT_OPTIONS = {
     'networks_key': 'networks',
     'roles_path': [],
     'sited_name': 'site.d',
+    'sockets_key': 'sockets',
 }
 
 
@@ -57,4 +58,5 @@ def make_valid_keys():
         'networks_templates': DEFAULT_OPTIONS['networks_key'] + '_templates',
         'groups_templates': DEFAULT_OPTIONS['groups_key'] + '_templates',
         'hosts_templates': DEFAULT_OPTIONS['hosts_key'] + '_templates',
+        'sockets': DEFAULT_OPTIONS['sockets_key'],
     }
