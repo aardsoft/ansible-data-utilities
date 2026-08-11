@@ -73,6 +73,13 @@ DHCP={{ _iface.value.dhcp }}
 {% else %}
 DHCP=no
 {% endif %}
+{% if _iface.value.configurewithoutcarrier is defined and _iface.value.configurewithoutcarrier == True %}
+ConfigureWithoutCarrier=yes
+{% endif %}
+{% if _iface.value.linklocaladdressing is defined and _iface.value.linklocaladdressing == False %}
+LinkLocalAddressing=no
+{% endif %}
+
 
 {% if _iface.value.type is defined and _iface.value.type == "bridge" %}
  {% if systemd_version|int <= 255 %}
@@ -163,6 +170,9 @@ Tunnel={{tunnel}}
 [Route]
       {% if _iface.value.routes[route].gateway is defined %}
 Gateway={{ _iface.value.routes[route].gateway }}
+      {% endif %}
+      {% if _iface.value.routes[route].gatewayonlink is defined %}
+GatewayOnLink={{ _iface.value.routes[route].gatewayonlink | boolconv('yesno') }}
       {% endif %}
       {% if _iface.value.routes[route].destination is defined %}
 Destination={{ _iface.value.routes[route].destination }}
