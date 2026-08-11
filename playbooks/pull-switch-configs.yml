@@ -21,6 +21,14 @@
 #   switch_config_format  filename as printf format, %s = inventory_hostname
 #                         (default: config.%s, matches legacy script naming)
 #
+# Per-host overrides:
+#   switch_host           overrides the connection target (ansible_host + domain).
+#                         Set to an IP or FQDN reachable from the Ansible node.
+#   switch_name           overrides inventory_hostname in the output filename
+#   switch_allow_agent    when true, skips password setup and relies on SSH
+#                         agent / key-based auth (useful for switches that
+#                         reject password auth).  Set in host_vars.
+#
 # Stack deduplication: switches with switch_stack set share a config file name.
 # The playbook pulls from the first reachable stack member and skips the rest.
 # If a member is unreachable the next member in play order takes over.
@@ -48,6 +56,7 @@
       set_fact:
         ansible_password: "{{ hostvars['localhost']['_switch_password'] }}"
       no_log: true
+      when: switch_allow_agent | default(false) | bool == false
 
   tasks:
     - name: Ensure local config directory exists
@@ -74,7 +83,7 @@
     - name: Fetch saved configuration
       raw: "__fetch_saved_config__"
       register: _switch_config
-      when: (switch_stack | default(inventory_hostname)) not in (hostvars['localhost']['_pulled_stacks'] | default([]))
+      when: (switch_stack | default(switch_name | default(inventory_hostname))) not in (hostvars['localhost']['_pulled_stacks'] | default([]))
       ignore_errors: true
       ignore_unreachable: true
 
@@ -84,7 +93,7 @@
         dest: >-
           {{ switch_config_dir | default('switch-configs') }}/{{
           (switch_config_format | default('config.%s')) |
-          format(switch_stack | default(inventory_hostname))
+          format(switch_stack | default(switch_name | default(inventory_hostname)))
           }}
       delegate_to: localhost
       connection: local
@@ -94,7 +103,7 @@
 
     - name: Mark stack as pulled
       set_fact:
-        _pulled_stacks: "{{ hostvars['localhost']['_pulled_stacks'] | default([]) + [switch_stack | default(inventory_hostname)] }}"
+        _pulled_stacks: "{{ hostvars['localhost']['_pulled_stacks'] | default([]) + [switch_stack | default(switch_name | default(inventory_hostname))] }}"
       delegate_to: localhost
       delegate_facts: true
       when:
